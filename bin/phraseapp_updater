@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+require 'thor'
+require_relative 'phraseapp_tools'
+
+class PhraseappDraftCLI < Thor
+  desc "update_master", "Update master from locale files while preserving unverified translations"
+  option :locales_path,          type: :string
+  option :phraseapp_api_key,     type: :string
+  option :phraseapp_project_id,  type: :string
+
+  def update_master
+    locales_path = options.fetch(:locales_path, ENV["PA_LOCALES_PATH"])
+    if locales_path.to_s.empty?
+      raise RuntimeError.new("Must provide a path to the locale files to upload. --locales_path or PA_LOCALES_PATH")
+    end
+
+    unless File.readable?(locales_path) && File.directory?(locales_path)
+      raise RuntimeError.new("Path to locales is not a readable directory: #{locales_path}")
+    end
+
+    phraseapp_api_key = options.fetch(:phraseapp_api_key, ENV["PA_API_KEY"])
+    if phraseapp_api_key.to_s.empty?
+      raise RuntimeError.new("Must provide Phraseapp API key. --phraseapp_api_key or PA_API_KEY")
+    end
+
+    phraseapp_project_id = options.fetch(:phraseapp_project_id, ENV["PA_PROJECT_ID"])
+    if phraseapp_project_id.to_s.empty?
+      raise RuntimeError.new("Must provide Phraseapp project ID. --phraseapp_project_id or PA_PROJECT_ID")
+    end
+
+    begin
+      PhraseappTools.update_master!(locales_path, phraseapp_api_key, phraseapp_project_id)
+    rescue StandardError => e
+      raise e
+    end
+  end
+end
+
+PhraseappDraftCLI.start(ARGV) if $0 == __FILE__
