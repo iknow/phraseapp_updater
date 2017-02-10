@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = %q{A three-way differ for PhraseApp projects.}
   spec.description   = %q{A tool for merging data on PhraseApp with local changes (usually two git revisions)}
-  spec.homepage      = "app.engoo.com"
+  spec.homepage      = "https://app.engoo.com"
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'

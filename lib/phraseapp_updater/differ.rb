@@ -45,3 +45,10 @@ class Differ
   end
 
 end
+
+
+# Something where I can say
+#
+# original: {}, new: {}, pa: {}, I expect {}
+# add regressions to this test
+# So something that takes the three and does the diffing, then applies
