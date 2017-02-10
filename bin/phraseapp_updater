@@ -1,21 +1,33 @@
 #!/usr/bin/env ruby
 require 'thor'
-require_relative 'phraseapp_tools'
+require 'phraseapp_updater'
 
-class PhraseappDraftCLI < Thor
-  desc "update_master", "Update master from locale files while preserving unverified translations"
-  option :locales_path,          type: :string
-  option :phraseapp_api_key,     type: :string
-  option :phraseapp_project_id,  type: :string
+class PhraseAppUpdaterCLI < Thor
+  desc "push_changes", "Update PhraseApp project by merging changes from locale file and PhraseApp"
+  option :new_locales_path,       type: :string
+  option :previous_locales_path,  type: :string
+  option :phraseapp_api_key,      type: :string
+  option :phraseapp_project_id,   type: :string
 
-  def update_master
-    locales_path = options.fetch(:locales_path, ENV["PA_LOCALES_PATH"])
-    if locales_path.to_s.empty?
-      raise RuntimeError.new("Must provide a path to the locale files to upload. --locales_path or PA_LOCALES_PATH")
+  # Add an option for log file
+
+  def push_changes
+    new_locales_path = options.fetch(:new_locales_path, ENV["PA_NEW_LOCALES_PATH"])
+    if new_locales_path.to_s.empty?
+      raise RuntimeError.new("Must provide a path to the locale files to upload. --new_locales_path or PA_NEW_LOCALES_PATH")
     end
 
-    unless File.readable?(locales_path) && File.directory?(locales_path)
-      raise RuntimeError.new("Path to locales is not a readable directory: #{locales_path}")
+    unless File.readable?(new_locales_path) && File.directory?(new_locales_path)
+      raise RuntimeError.new("Path to locales is not a readable directory: #{new_locales_path}")
+    end
+
+    previous_locales_path = options.fetch(:previous_locales_path, ENV["PA_PREVIOUS_LOCALES_PATH"])
+    if previous_locales_path.to_s.empty?
+      raise RuntimeError.new("Must provide a path to the locale files to upload. --previous_locales_path or PA_PREVIOUS_LOCALES_PATH")
+    end
+
+    unless File.readable?(previous_locales_path) && File.directory?(previous_locales_path)
+      raise RuntimeError.new("Path to locales is not a readable directory: #{previous_locales_path}")
     end
 
     phraseapp_api_key = options.fetch(:phraseapp_api_key, ENV["PA_API_KEY"])
@@ -29,11 +41,12 @@ class PhraseappDraftCLI < Thor
     end
 
     begin
-      PhraseappTools.update_master!(locales_path, phraseapp_api_key, phraseapp_project_id)
+      PhraseAppUpdater.run(phraseapp_api_key, phraseapp_project_id, previous_locales_path, new_locales_path)
     rescue StandardError => e
+      # Raise more specific errors and handle
       raise e
     end
   end
 end
 
-PhraseappDraftCLI.start(ARGV) if $0 == __FILE__
+PhraseAppUpdaterCLI.start(ARGV) if $0 == __FILE__

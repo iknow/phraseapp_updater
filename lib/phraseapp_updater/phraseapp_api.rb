@@ -1,5 +1,5 @@
 require 'phraseapp-ruby'
-require_relative 'locale_file'
+require 'phraseapp_updater/locale_file'
 
 class PhraseAppAPI
   def initialize(api_key, project_id)

@@ -1,4 +1,4 @@
-require_relative 'locale_file'
+require 'phraseapp_updater/locale_file'
 
 class LocaleFileLoader
   def self.load(filename)

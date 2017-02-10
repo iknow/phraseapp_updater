@@ -8,6 +8,10 @@ Oj.default_options = {mode: :strict}
 class LocaleFile
   attr_reader :name, :content, :parsed_content
 
+  def self.from_hash(name, hash)
+    new(name, MultiJson.dump(hash))
+  end
+
   def initialize(name, content)
     @name           = name
     @content        = content
