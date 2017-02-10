@@ -19,6 +19,14 @@ class Differ
       deep_compact!(HashDiff.patch!(hash, diffs))
     end
 
+    def resolve!(original:, primary:, secondary:)
+      primary_diffs   = Differ.calculate_diff(original, primary)
+      secondary_diffs = Differ.calculate_diff(original, secondary)
+
+      resolved_diffs   = Differ.resolve_diffs(primary: primary_diffs, secondary: secondary_diffs)
+      Differ.apply_diffs(original, resolved_diffs)
+    end
+
     private
 
     def flatten(hash, prefix = nil, acc = {})

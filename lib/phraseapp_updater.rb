@@ -35,11 +35,9 @@ class PhraseAppUpdater
       new_locale_file = new_locale_files.fetch(previous_locale_file.name)
       phraseapp_file  = phraseapp_files.fetch(previous_locale_file.name)
 
-      previous_to_new_diffs       = Differ.calculate_diff(previous_locale_file.parsed_content, new_locale_file.parsed_content)
-      previous_to_phraseapp_diffs = Differ.calculate_diff(previous_locale_file.parsed_content, phraseapp_file.parsed_content)
-
-      resolved_diffs   = Differ.resolve_diffs(primary: previous_to_new_diffs, secondary: previous_to_phraseapp_diffs)
-      resolved_content = Differ.apply_diffs(previous_locale_file.parsed_content, resolved_diffs)
+      resolved_content = Differ.resolve!(original: previous_locale_file.parsed_content,
+                                         primary: new_locale_file.parsed_content,
+                                         secondary: phraseapp_file.parsed_content)
 
       LocaleFile.from_hash(previous_locale_file.name, resolved_content)
     end
