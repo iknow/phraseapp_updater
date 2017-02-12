@@ -58,6 +58,15 @@ describe Differ do
         @b = {"a" => 1, "b" => 2, "c" => {"d" => 3}}
         expect(subject).to eq({"a" => 1, "b" => 2})
       end
+
+      it 'resolves to the deletion when b makes it a multi-nested key' do
+        @b = {"a" => 1, "b" => 2, "c" => {"d" => {"e" => 5}}}
+        expect(subject).to eq({"a" => 1, "b" => 2})
+      end
+    end
+
+    context 'nested deletion on a' do
+      before { @a = {"a" => 1, "b" => 2} }
     end
   end
 end
