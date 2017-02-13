@@ -119,5 +119,28 @@ describe Differ do
       expect(resolution).to eq(@a)
     end
 
+    it "handles deleting a child overriding editing a hash" do
+      @a = {"a" => 1, "b" => {"c" => 2}}
+      @b = {"a" => 1, "b" => {"c" => 2, "d" => {"e" => 4}}}
+      expect(resolution).to eq(@a)
+    end
+
+    it "handles deleting a child overriding editing a hash" do
+      @a = {"a" => 1, "b" => {"c" => 2}}
+      @b = {"a" => 1, "b" => {"c" => 2, "d" => {"e" => 4}}}
+      expect(resolution).to eq(@a)
+    end
+
+    it "handles mututally adding to a nested key" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
+      @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "g" => 5 }}}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4, "g" => 5 }}})
+    end
+
+    it "handles adding a nested key against making the parent a terminal" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
+      @b =  {"a" => 1, "b" => { "c" => 2, "d" => 5}}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4}}})
+    end
   end
 end
