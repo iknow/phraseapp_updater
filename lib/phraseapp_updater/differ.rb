@@ -2,6 +2,7 @@ require 'set'
 require 'hashdiff'
 
 class Differ
+  SEPARATOR = "~~~"
   using IndexBy
 
   class << self
@@ -80,7 +81,7 @@ class Differ
       #
       # Additionally calculate subtree prefixes that were deleted in `secondary`:
       secondary_deleted_prefixes =
-        HashDiff.diff(original, secondary).lazy
+        HashDiff.diff(original, secondary, delimiter: SEPARATOR).lazy
           .select { |op, path, from, to| (op == "-" || op == "~") && from.is_a?(Hash) && !to.is_a?(Hash) }
           .map    { |op, path, from, to| path }
           .to_a
@@ -90,22 +91,19 @@ class Differ
                                      secondary: secondary_diffs,
                                      secondary_deleted_prefixes: secondary_deleted_prefixes)
 
-      # puts "Deep secondary changes: #{HashDiff.diff(original, secondary).inspect}"
-      # puts "Primary wants: #{primary_diffs.inspect}"
-      # puts "Secondary wants: #{secondary_diffs.inspect}"
+      # puts "Primary wants:              #{primary_diffs.inspect}"
+      # puts "Secondary wants:            #{secondary_diffs.inspect}"
       # puts "Secondary deleted prefixes: #{secondary_deleted_prefixes.inspect}"
-      # puts "Resolved to #{resolved_diffs.inspect}"
+      # puts "Resolved to                 #{resolved_diffs.inspect}"
 
       HashDiff.patch!(f_original, resolved_diffs)
 
-      # puts "produced: #{f_original.inspect}"
+      # puts "produced:                   #{f_original.inspect}"
 
       expand(f_original)
     end
 
     private
-
-    SEPARATOR = "~~~"
 
     def flatten(hash, prefix = nil, acc = {})
       hash.each do |k, v|
