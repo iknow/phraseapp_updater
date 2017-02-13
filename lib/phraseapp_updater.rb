@@ -1,17 +1,8 @@
+require 'phraseapp_updater/index_by'
 require 'phraseapp_updater/differ'
 require 'phraseapp_updater/locale_file'
 require 'phraseapp_updater/locale_file_loader'
 require 'phraseapp_updater/phraseapp_api'
-
-module IndexBy
-  refine Array do
-    def index_by(&block)
-      each_with_object({}) do |value, hash|
-        hash[yield(value)] = value
-      end
-    end
-  end
-end
 
 class PhraseAppUpdater
   using IndexBy

@@ -1,57 +1,57 @@
 require 'set'
 require 'hashdiff'
 
-module StringIndicies
-  refine String do
-    def all_indicies(sub_string)
-      i = -1
-      indicies = []
-      while i = self.index(sub_string, i + 1)
-        indicies << i
-      end
-      indicies
-    end
-  end
-end
-
 class Differ
-  # The indicies for the diff arrays
-  # that HashDiff returns
-  CHANGE = 0
-  KEY    = 1
-  VALUE  = 2
+  using IndexBy
 
-  using StringIndicies
   class << self
-    def calculate_diff(a, b)
-      HashDiff.diff(flatten(a), flatten(b))
-    end
-
     # Resolution strategy is that primary always wins in the event of a conflict
-    def resolve_diffs(primary:, secondary:)
-      conflicts = (primary.map { |a| a[KEY] }.to_set) & (secondary.map { |a| a[KEY] }.to_set)
-      secondary.delete_if { |type, key, old, new| conflicts.include?(key) }
+    def resolve_diffs(primary:, secondary:, secondary_deleted_prefixes:)
+      primary   = primary.index_by   { |op, path, from, to| path }
+      secondary = secondary.index_by { |op, path, from, to| path }
 
-      # Since our resolution strategy is that primary always wins, we want to discard
-      # any changes or additions to keys in secondary which are deleted in primary.
-      # For shallow keys, this is unnecessary, as the above resolution will have
-      # filtered them already. However, consider the following case:
+      # As well as explicit conflicts, we want to make sure that deletions or
+      # incompatible type changes to a `primary` key prevent addition of child
+      # keys in `secondary`. Because input hashes are flattened, it's never
+      # possible for a given path and its prefix to be in the same input.
+      # For example, in:
       #
-      # primary   = [["-", "a", 3]]
-      # secondary = [["+", "a.b", 5]]
+      # primary   = [["+", "a", 1]]
+      # secondary = [["+", "a.b", 2]]
       #
-      # The above resolution will leave both of these diffs in tact. However,
-      # when HashDiff goes to apply them, it will first remove a from original
-      # and then attempt to perform `original["a"]["b"] = 5`, which is an error.
+      # the secondary change is impossible to perform on top of the primary, and
+      # must be blocked.
       #
-      # So we add another resolution step: gather all the keys that primary deletes
-      # and then kill any children of those keys in secondary. This is a nested
-      # extension of the above resolution strategy of primary winning.
+      # This applies in reverse: prefixes of paths in `p` need to be available
+      # as hashes, so must not appear as terminals in `s`:
+      #
+      # primary   = [["+", "a.b", 2]]
+      # secondary = [["+", "a",   1]]
+      primary_prefixes = primary.keys.flat_map { |p| path_prefixes(p) }.to_set
 
-      deletions = primary.select { |diff| diff[CHANGE] == "-" }.map! { |diff| diff[KEY] }
-      secondary.delete_if { |diff| deletions.any? { |deletion| diff[KEY].start_with?(deletion) } }
+      # Remove conflicting entries from secondary, recording incompatible
+      # changes.
+      path_conflicts = []
+      secondary.delete_if do |path, diff|
+        if primary_prefixes.include?(path) || primary.keys.any? { |pk| path.start_with?(pk) }
+          path_conflicts << path unless primary.has_key?(path) && diff == primary[path]
+          true
+        else
+          false
+        end
+      end
 
-      primary + secondary
+      # For all path conflicts matching secondary_deleted_prefixes, additionally
+      # remove other changes with the same prefix.
+      prefix_conflicts = secondary_deleted_prefixes.select do |prefix|
+        path_conflicts.any? { |path| path.start_with?(prefix) }
+      end
+
+      secondary.delete_if do |path, diff|
+        prefix_conflicts.any? { |prefix| path.start_with?(prefix) }
+      end
+
+      primary.values + secondary.values
     end
 
     def apply_diffs(hash, diffs)
@@ -59,60 +59,57 @@ class Differ
     end
 
     def resolve!(original:, primary:, secondary:)
-      primary_diffs   = Differ.calculate_diff(original, primary)
-      secondary_diffs = Differ.calculate_diff(original, secondary)
+      # To appropriately cope with type changes on either sides, flatten the
+      # trees before calculating the difference and then expand afterwards.
+      f_original  = flatten(original)
+      f_primary   = flatten(primary)
+      f_secondary = flatten(secondary)
 
-      resolved_diffs   = Differ.resolve_diffs(primary: primary_diffs, secondary: secondary_diffs)
-      new_nested_diffs = create_nested_key_diffs(original, calculate_added_nested_keys(resolved_diffs))
+      primary_diffs   = HashDiff.diff(f_original, f_primary)
+      secondary_diffs = HashDiff.diff(f_original, f_secondary)
 
-      Differ.apply_diffs(original, new_nested_diffs + resolved_diffs)
+      # However, flattening discards one critical piece of information: when we
+      # have deleted or clobbered an entire prefix (subtree) from the original,
+      # we want to consider this deletion atomic. If any of the changes is
+      # cancelled, they must all be. Motivating example:
+      #
+      # original:  { word: { one: "..", "many": ".." } }
+      # primary:   { word: { one: "..", "many": "..", "zero": ".." } }
+      # secondary: { word: ".." }
+      # would unexpectedly result in { word: { zero: ".." } }.
+      #
+      # Additionally calculate subtree prefixes that were deleted in `secondary`:
+      secondary_deleted_prefixes =
+        HashDiff.diff(original, secondary).lazy
+          .select { |op, path, from, to| (op == "-" || op == "~") && from.is_a?(Hash) && !to.is_a?(Hash) }
+          .map    { |op, path, from, to| path }
+          .to_a
+
+
+      resolved_diffs = resolve_diffs(primary:   primary_diffs,
+                                     secondary: secondary_diffs,
+                                     secondary_deleted_prefixes: secondary_deleted_prefixes)
+
+      # puts "Deep secondary changes: #{HashDiff.diff(original, secondary).inspect}"
+      # puts "Primary wants: #{primary_diffs.inspect}"
+      # puts "Secondary wants: #{secondary_diffs.inspect}"
+      # puts "Secondary deleted prefixes: #{secondary_deleted_prefixes.inspect}"
+      # puts "Resolved to #{resolved_diffs.inspect}"
+
+      HashDiff.patch!(f_original, resolved_diffs)
+
+      # puts "produced: #{f_original.inspect}"
+
+      expand(f_original)
     end
 
     private
 
-    def calculate_added_nested_keys(diffs, depth = 1)
-      keys = diffs.map { |d| d[KEY] }.select { |key| key.count(".") == depth }
-      return [] if keys.empty?
-
-      keys.map! do |key|
-        nested_index = key.all_indicies(".")[depth - 1]
-        key[0, nested_index]
-      end
-
-      return (keys + calculate_added_nested_keys(diffs, depth + 1))
-    end
-
-    # For each nested key in the diffs, check if they
-    # are not present in the base. If not present,
-    # create a diff that first adds the key
-    def create_nested_key_diffs(original, new_nested_keys)
-      needed_keys = Set.new
-
-      new_nested_keys.select do |nested_key|
-        # Traverse the original to see if we have the key
-        # If we hit a KeyError, this is a key we need to add.
-        current_hash = original
-        current_key  = nil
-
-        begin
-          nested_key.split(".").each do |key|
-            current_key  = key
-            current_hash = current_hash.fetch(current_key)
-          end
-        rescue KeyError => e
-          needed_keys.add(current_key)
-        end
-
-      end
-
-      needed_keys.map do |key|
-        ["+", key, {}]
-      end
-    end
+    SEPARATOR = "~~~"
 
     def flatten(hash, prefix = nil, acc = {})
       hash.each do |k, v|
-        k = "#{prefix}.#{k}" if prefix
+        k = "#{prefix}#{SEPARATOR}#{k}" if prefix
         if v.is_a?(Hash)
           flatten(v, k, acc)
         else
@@ -122,16 +119,26 @@ class Differ
       acc
     end
 
-    def deep_compact!(hash)
-      hash.delete_if do |k, v|
-        if v.is_a?(Hash)
-          deep_compact!(v).empty?
-        else
-          v.nil?
+    def expand(flat_hash)
+      flat_hash.each_with_object({}) do |(key, value), root|
+        path = key.split(SEPARATOR)
+        leaf_key = path.pop
+        leaf = path.inject(root) do |node, path_key|
+          node[path_key] ||= {}
         end
+        raise ArgumentError.new("Type conflict in flattened hash expand: expected no key at #{key}") if leaf.has_key?(leaf_key)
+        leaf[leaf_key] = value
       end
     end
+
+    def path_prefixes(path_string)
+      path = path_string.split(SEPARATOR)
+      parents = []
+      path.inject do |acc, el|
+        parents << acc
+        "#{acc}#{SEPARATOR}#{el}"
+      end
+      parents
+    end
   end
-
 end
-
