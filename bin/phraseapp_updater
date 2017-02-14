@@ -41,7 +41,7 @@ class PhraseAppUpdaterCLI < Thor
     end
 
     begin
-      PhraseAppUpdater.run(phraseapp_api_key, phraseapp_project_id, previous_locales_path, new_locales_path)
+      updates = PhraseAppUpdater.run(phraseapp_api_key, phraseapp_project_id, previous_locales_path, new_locales_path)
     rescue StandardError => e
       # Raise more specific errors and handle
       raise e

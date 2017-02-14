@@ -142,5 +142,29 @@ describe Differ do
       @b =  {"a" => 1, "b" => { "c" => 2, "d" => 5}}
       expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4}}})
     end
+
+    it "handles adding a nested key as a terminal against adding it as a hash" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
+      @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => {"g" => 5}}}}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4}}})
+    end
+
+    it "handles concurrent editing of a nested terminal" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
+      @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 7}}}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}})
+    end
+
+    it "handles editing a nested terminal versus deletion" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
+      @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "f" => 7}}}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6, "f" => 7}}})
+    end
+
+    it "handles editing a nested terminal versus deletion of the parent" do
+      @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
+      @b =  {"a" => 1, "b" => { "c" => 2, }}
+      expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}})
+    end
   end
 end

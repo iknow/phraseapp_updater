@@ -11,11 +11,16 @@ class PhraseAppUpdater
     phraseapp_api         = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id)
     previous_locale_files = LocaleFileLoader.filenames(previous_locales_path).map { |l| LocaleFileLoader.load(l) }
     new_locale_files      = LocaleFileLoader.filenames(new_locales_path).map      { |l| LocaleFileLoader.load(l) }
-    phraseapp_files       = phraseapp_api.all_locale_files
+    phraseapp_files       = phraseapp_api.download_all_locale_files
 
-    unless previous_locale_files.map(&:name) == new_locale_files.map(&:name) && previous_locale_files.map(&:name) == phraseapp_files.map(&:name)
-      message = "Number of files differs. This tool does not yet support adding or removing langauges\n\
-      #{previous_locale_files.map(&:name)} #{new_locale_files.map(&:name)} #{phraseapp_files.map(&:name)}"
+    file_name_lists = [previous_locale_files, new_locale_files, phraseapp_files].map do |files|
+      files.map(&:name).to_set
+    end
+
+    # If we don't have the exact same locales for all three sources, we can't diff them
+    unless file_name_lists[0] == file_name_lists[1] && file_name_lists[1] == file_name_lists[2]
+      message = "Number of files differs. This tool does not yet support adding\
+      or removing langauges: #{file_name_lists}"
       raise RuntimeError.new(message)
     end
 
@@ -33,15 +38,23 @@ class PhraseAppUpdater
       LocaleFile.from_hash(previous_locale_file.name, resolved_content)
     end
 
-    resolved_files.each do |file|
-      puts "Uploading #{file.inspect}"
-      upload_id = phraseapp_api.upload_file(file)
-      # What if the above succeeds and this fails? Bad state? Report it!
-      # So much more logging
-      # PhraseApp currently 500s with this valid request
-      #phraseapp_api.remove_keys_not_in_upload(upload_id)
+    changed_files = resolved_files.select do |file|
+      file.parsed_content != phraseapp_files[file.name].parsed_content
     end
 
+    upload_ids = phraseapp_api.upload_files(changed_files)
+    phraseapp_api.remove_keys_not_in_uploads(upload_ids)
+
+    LocaleFileUpdates.new(phraseapp_files.values, changed_files)
+  end
+
+  class LocaleFileUpdates
+    attr_reader :original_phraseapp_files, :resolved_files
+
+    def initialize(original_phraseapp_files, resolved_files)
+      @original_phraseapp_files = original_phraseapp_files
+      @resolved_files           = resolved_files
+    end
   end
 end
 
