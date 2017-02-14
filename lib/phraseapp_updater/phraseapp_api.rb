@@ -1,7 +1,12 @@
 require 'phraseapp-ruby'
 require 'phraseapp_updater/locale_file'
+require 'thread'
 
 class PhraseAppAPI
+  # PhraseApp allows two concurrent connections
+  # at a time.
+  THREAD_COUNT = 2
+
   def initialize(api_key, project_id)
     @client     = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
     @project_id = project_id
@@ -10,8 +15,31 @@ class PhraseAppAPI
   def all_locale_files
     locales = download_locales.map { |l| Locale.new(l) }
 
-    locales.map do |l|
-      LocaleFile.new(l.name, download_file(l))
+    locale_queue = Queue.new
+    locales.each { |l| locale_queue << l }
+
+    threads = []
+
+    THREAD_COUNT.times do |n|
+      threads << Thread.new do
+        Thread.current[:files] = {}
+        begin
+          while (locale = locale_queue.pop(true)) do
+            puts "Downloading file for #{locale}"
+            Thread.current[:files][locale] = download_file(locale)
+          end
+        rescue ThreadError => e
+          Thread.exit
+        end
+      end
+    end
+
+    threads.each(&:join)
+
+    threads.each_with_object({}) do |thread, locale_files|
+      locale_files.merge!(thread[:files])
+    end.map do |locale, file_contents|
+      LocaleFile.new(locale.name, file_contents)
     end
   end
 
@@ -47,7 +75,7 @@ class PhraseAppAPI
 
   def remove_keys_not_in_upload(upload_id)
     delete_params   = PhraseApp::RequestParams::KeysDeleteParams.new
-    delete_params.q = "unmentioned_in_upload:\"#{upload_id}\""
+    delete_params.q = "unmentioned_in_upload:#{upload_id}"
 
     phraseapp_request { @client.keys_delete(@project_id, delete_params) }
   end
@@ -90,6 +118,10 @@ class PhraseAppAPI
     def initialize(phraseapp_locale)
       @name = phraseapp_locale.name
       @id   = phraseapp_locale.id
+    end
+
+    def to_s
+      "#{name} : #{id}"
     end
   end
 end
