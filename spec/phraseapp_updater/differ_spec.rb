@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'phraseapp_updater/differ'
 
-describe Differ do
+describe PhraseAppUpdater::Differ do
   let(:resolution) { Differ.resolve!(original: original, primary: @a, secondary: @b) }
 
   context 'empty base' do
