@@ -50,3 +50,4 @@ class PhraseAppUpdaterCLI < Thor
 end
 
 PhraseAppUpdaterCLI.start(ARGV) if $0 == __FILE__
+

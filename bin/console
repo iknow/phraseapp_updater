@@ -10,5 +10,6 @@ require "phraseapp_updater"
 # require "pry"
 # Pry.start
 
-require "irb"
-IRB.start
+require "pry"
+Pry.start
+

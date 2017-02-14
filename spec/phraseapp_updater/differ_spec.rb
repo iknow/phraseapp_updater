@@ -168,3 +168,4 @@ describe Differ do
     end
   end
 end
+

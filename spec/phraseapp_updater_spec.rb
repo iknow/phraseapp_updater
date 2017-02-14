@@ -9,3 +9,4 @@ describe PhraseappUpdater do
     expect(false).to eq(true)
   end
 end
+
