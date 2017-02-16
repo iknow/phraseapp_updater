@@ -4,6 +4,7 @@ require 'phraseapp_updater/differ'
 require 'phraseapp_updater/locale_file'
 require 'phraseapp_updater/locale_file_loader'
 require 'phraseapp_updater/phraseapp_api'
+require 'phraseapp_updater/yml_config_loader'
 
 class PhraseAppUpdater
   using IndexBy
@@ -70,6 +71,10 @@ class PhraseAppUpdater
                                              fallback_files[phraseapp_file.name].parsed_content)
       LocaleFile.from_hash(phraseapp_file.name, new_content)
     end
+  end
+
+  def self.load_config(config_file_path)
+    YMLConfigLoader.new(config_file_path)
   end
 
   def self.find_default_locale_file(locales, files)

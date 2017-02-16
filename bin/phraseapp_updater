@@ -8,11 +8,36 @@ class PhraseAppUpdaterCLI < Thor
   option :previous_locales_path,           type: :string
   option :phraseapp_api_key,               type: :string
   option :phraseapp_project_id,            type: :string
+  option :config_file_path,                type: :string
   option :store_results_path,              type: :string
   option :store_phraseapp_originals_path,  type: :string
 
   def push
+    if options[:config_file_path]
+
+      if options[:phraseapp_api_key] || options[:phraseapp_project_id]
+        raise RuntimeError.new("Provided both a path to PhraseApp config file and command line arguments. Specify only one. #{options}")
+      end
+
+      config = PhraseAppUpdater.load_config(options[:config_file_path])
+
+      phraseapp_api_key    = config.api_key
+      phraseapp_project_id = config.project_id
+    else
+      phraseapp_api_key    = options.fetch(:phraseapp_api_key, ENV["PA_API_KEY"])
+      phraseapp_project_id = options.fetch(:phraseapp_project_id, ENV["PA_PROJECT_ID"])
+    end
+
+    if phraseapp_api_key.to_s.empty?
+      raise RuntimeError.new("Must provide Phraseapp API key. --phraseapp_api_key or PA_API_KEY")
+    end
+
+    if phraseapp_project_id.to_s.empty?
+      raise RuntimeError.new("Must provide Phraseapp project ID. --phraseapp_project_id or PA_PROJECT_ID")
+    end
+
     new_locales_path = options.fetch(:new_locales_path, ENV["PA_NEW_LOCALES_PATH"])
+
     if new_locales_path.to_s.empty?
       raise RuntimeError.new("Must provide a path to the locale files to upload. --new_locales_path or PA_NEW_LOCALES_PATH")
     end
@@ -28,16 +53,6 @@ class PhraseAppUpdaterCLI < Thor
 
     unless File.readable?(previous_locales_path) && File.directory?(previous_locales_path)
       raise RuntimeError.new("Path to locales is not a readable directory: #{previous_locales_path}")
-    end
-
-    phraseapp_api_key = options.fetch(:phraseapp_api_key, ENV["PA_API_KEY"])
-    if phraseapp_api_key.to_s.empty?
-      raise RuntimeError.new("Must provide Phraseapp API key. --phraseapp_api_key or PA_API_KEY")
-    end
-
-    phraseapp_project_id = options.fetch(:phraseapp_project_id, ENV["PA_PROJECT_ID"])
-    if phraseapp_project_id.to_s.empty?
-      raise RuntimeError.new("Must provide Phraseapp project ID. --phraseapp_project_id or PA_PROJECT_ID")
     end
 
     store_results_path = options.fetch(:store_results_path, ENV["PA_store_results_path"]).to_s
