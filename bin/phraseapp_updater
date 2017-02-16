@@ -63,7 +63,7 @@ class PhraseAppUpdaterCLI < Thor
       end
 
       unless store_phraseapp_originals_path.empty?
-        result.resolved_files.each do |file|
+        result.original_phraseapp_files.each do |file|
           path = "#{store_phraseapp_originals_path.chomp("/")}/#{file.name}.json"
           File.write(path, file.content)
         end

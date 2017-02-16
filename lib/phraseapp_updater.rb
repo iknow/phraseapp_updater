@@ -50,7 +50,7 @@ class PhraseAppUpdater
     upload_id = phraseapp_api.upload_file(default_locale_file)
     phraseapp_api.remove_keys_not_in_upload(upload_id)
 
-    LocaleFileUpdates.new(phraseapp_files.values, changed_files + [default_locale_file])
+    LocaleFileUpdates.new(phraseapp_files.values, [default_locale_file] + resolved_files)
   end
 
   def self.pull(phraseapp_api_key, phraseapp_project_id, fallback_locales_path)
