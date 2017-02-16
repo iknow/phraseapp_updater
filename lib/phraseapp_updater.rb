@@ -47,7 +47,10 @@ class PhraseAppUpdater
     upload_ids = phraseapp_api.upload_files(changed_files)
     phraseapp_api.remove_keys_not_in_uploads(upload_ids)
 
+    puts "Uploading #{default_locale_file}"
     upload_id = phraseapp_api.upload_file(default_locale_file)
+
+    puts "Removing keys not in upload #{upload_id}"
     phraseapp_api.remove_keys_not_in_upload(upload_id)
 
     LocaleFileUpdates.new(phraseapp_files.values, [default_locale_file] + resolved_files)
