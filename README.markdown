@@ -2,9 +2,15 @@
 
 [![Build Status](https://travis-ci.org/iknow/phraseapp_updater.svg?branch=master)](https://travis-ci.org/iknow/phraseapp_updater)
 
-**Version** 0.1.0
+**Version** 0.1.3
 
-This is a tool for performing three-way merges of [PhraseApp](https://phraseapp.com) locale data with locale data commited to your application.
+This is a tool for merging PhraseApp locale data with locale data
+committed in your project.
+
+It can perform three-way merges of [PhraseApp](https://phraseapp.com) locale data with locale data commited to your application.
+It can also pull from PhraseApp, ignoring missing keys (this is very
+useful for using "unverified" status for marking a translation as a
+draft).
 
 Our current workflow has localizers working on a `master` project on
 PhraseApp. This regularly gets pulled into the `master` branch of our
@@ -19,7 +25,7 @@ them, but the API only allows either a) completely overwriting
 PhraseApp's data or b) reapplying PhraseApp's data on top of the
 uploaded data.
 
-What we want instead is a three way merge where the uploaded data wins
+What we want instead is a three way merge where the committed data wins
 on conflict. Non-conflicting changes on PhraseApp are preserved, while
 changes on both sides take the committed data. The result of the merge
 is then sent to PhraseApp, keeping it up-to-date with the newest commit
@@ -74,15 +80,16 @@ Or install it yourself as:
 CLI
 ---
 
-`phraseapp_updater` operates on two directories and your PhraseApp API
-data. The two directories should contain the previous revision of your
-locale files and the latest revision of the same files. These will be
-used in the merge with the files on PhraseApp.
+**Push**
 
-The main command is the the `push_changes` command:
+`phraseapp_updater push` operates on two directories and your PhraseApp API
+data. The two directories should contain the previous revision of your
+locale files from PhraseApp and the latest revision of the same files
+committed to your application's respository.  These will be used in the
+merge with the files on PhraseApp.
 
 ```
-phraseapp_updater push_changes --new_locales_path="/data/previous", --previous_locales_path="/data/new" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid"
+phraseapp_updater push --new_locales_path="/data/previous", --previous_locales_path="/data/new" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid"
 ```
 
 The arguments provided to the command can also be specified as shell
@@ -95,23 +102,65 @@ PA_API_KEY
 PA_PROJECT_ID
 ```
 
+Additionally, PhraseApp credentials can be loaded from a
+`.phraseapp.yml` file, specified with `--config-file-path`
+
+**Pull**
+
+`phraseapp_updater pull` pulls data down from your PhraseApp project.
+However, when keys are missing from the PhraseApp data, it restores them
+(if present) from the files at fallback path provided. This allows you
+to mark keys as "unverified" on PhraseApp, meaning you don't pull in
+draft translations, while allowing you to keep the current version of
+that translation.
+
+If you want to pull without this fallback behavior, PhraseApp's [client](https://phraseapp.com/docs/developers/cli/)
+is the best tool to use.
+
+```
+phraseapp_updater pull --fallback_path="/data/app/locales" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid"
+```
+
+The PhraseApp data passed to the command can also be specified as shell
+variables:
+
+```
+PA_API_KEY
+PA_PROJECT_ID
+```
+
+Additionally, PhraseApp credentials can be loaded from a
+`.phraseapp.yml` file, specified with `--config-file-path`
+
 Ruby
 ---
 
-`PhraseAppUpdater.push` is analogous to the command line version:
+`PhraseAppUpdater.push` and `PhraseAppUpdater.pull` are analogous to the command line versions:
 
 ```ruby
 PhraseAppUpdater.push("api_key", "project_id", "previous/path", "current/path")
+PhraseAppUpdater.pull("api_key", "project_id", "fallback/path")
 ```
+
+
+## git-based Driver
+
+We use a small bash script for driving this library to push and pull
+from PhraseApp. While there are many ways to merge data in your
+application with PhraseApp, this works for us:
+
+https://gist.github.com/kevingriffin/d59821446ce424a56c7da2686d4ae082
 
 ## Future Improvements
 
 If you'd like to contribute, these would be very helpful!
 
-* Expose the changed files on the command line
-* Implement other `LocaleFile`s with `parse` for non-JSON types
-* Checking if PhraseApp files changed during execution before upload, to reduce the race condition window
-* More specs for the API and shell
+* Separating downloading and resolving data from PhraseApp from pushing
+  back up to it, to enable different kinds of workflows.
+* Expose the changed files on the command line.
+* Implement other `LocaleFile`s with `parse` for non-JSON types.
+* Checking if PhraseApp files changed during execution before upload, to reduce the race condition window.
+* More specs for the API and shell.
 
 ## Development
 
