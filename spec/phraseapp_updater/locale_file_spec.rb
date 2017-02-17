@@ -12,6 +12,10 @@ describe PhraseAppUpdater::LocaleFile do
     expect(locale_file.name).to eq @name
   end
 
+  it 'returns its name with an extension' do
+    expect(locale_file.name_with_extension).to eq "#{@name}.json"
+  end
+
   it 'parses proper JSON' do
     @content = '{"a": {"b": 5}}'
     expect(locale_file.parsed_content).to eq({"a" => {"b" => 5}})

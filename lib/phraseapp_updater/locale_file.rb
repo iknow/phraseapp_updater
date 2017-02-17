@@ -24,6 +24,10 @@ class PhraseAppUpdater
       "#{name}, #{content[0,20]}..."
     end
 
+    def name_with_extension
+      "#{name}.json"
+    end
+
     private
 
     def parse(content)
