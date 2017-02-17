@@ -1,5 +1,5 @@
-require 'phraseapp-ruby'
 require 'phraseapp_updater/locale_file'
+require 'phraseapp-ruby'
 require 'thread'
 
 class PhraseAppUpdater
@@ -83,7 +83,17 @@ class PhraseAppUpdater
     private
 
     def phraseapp_request(&block)
-      res, err = block.call
+      begin
+        res, err = block.call
+      rescue RuntimeError => e
+        if e.message[/\(401\)/]
+          raise BadAPIKeyError.new(e)
+        elsif e.message[/not found/]
+          raise BadProjectIDError.new(e)
+        else
+          raise e
+        end
+      end
 
       unless err.nil?
         if err.respond_to?(:error)
@@ -139,7 +149,7 @@ class PhraseAppUpdater
     end
 
     def generate_upload_tag
-      "file_merge_upload_#{Time.now.strftime('%Y%m%d%H%M%S')}"
+      "phraseapp_updater_upload_#{Time.now.strftime('%Y%m%d%H%M%S')}"
     end
 
     class Locale
@@ -156,6 +166,18 @@ class PhraseAppUpdater
 
       def to_s
         "#{name} : #{id}"
+      end
+    end
+
+    class BadAPIKeyError < RuntimeError
+      def initialize(original_error)
+        super(original_error.message)
+      end
+    end
+
+    class BadProjectIDError < RuntimeError
+      def initialize(original_error)
+        super(original_error.message)
       end
     end
   end
