@@ -28,7 +28,7 @@ class PhraseAppUpdaterCLI < Thor
     validate_writable_path!('store_phraseapp_originals_path', store_phraseapp_originals_path)
 
     begin
-      result = PhraseAppUpdater.push(phraseapp_api_key, phraseapp_project_id, previous_locales_path, new_locales_path)
+      result = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id).push(previous_locales_path, new_locales_path)
 
       unless store_results_path.empty?
         write_locale_files(store_results_path, result.resolved_files)
@@ -65,14 +65,14 @@ class PhraseAppUpdaterCLI < Thor
     validate_writable_path!('destination_path', destination_path)
 
     begin
-      files = PhraseAppUpdater.pull(phraseapp_api_key, phraseapp_project_id, fallback_path)
+      files = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id).pull(fallback_path)
       write_locale_files(destination_path, files)
     rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError => e
       puts "Bad PhraseApp API key."
     rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
       puts "Bad PhraseApp project ID: #{phraseapp_project_id}"
     rescue StandardError => e
-      puts "Unknown error when pushing files"
+      puts "Unknown error when pulling files"
       raise e
     end
   end

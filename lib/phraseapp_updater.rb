@@ -9,12 +9,23 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
-  def self.push(phraseapp_api_key, phraseapp_project_id, previous_locales_path, new_locales_path)
-    phraseapp_api         = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id)
-    phraseapp_locales     = phraseapp_api.download_locales
+  def initialize(phraseapp_api_key, phraseapp_project_id)
+    @phraseapp_api = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id)
+  end
 
-    phraseapp_files, (previous_locale_files, new_locale_files) =
-      load_files(phraseapp_api, phraseapp_locales, false, previous_locales_path, new_locales_path)
+  def self.load_config(config_file_path)
+    YMLConfigLoader.new(config_file_path)
+  end
+
+  def push(previous_locales_path, new_locales_path)
+    phraseapp_locales = @phraseapp_api.download_locales
+
+    phraseapp_files = load_phraseapp_files(phraseapp_locales, false)
+
+    (previous_locale_files, new_locale_files) =
+      load_locale_files(previous_locales_path, new_locales_path)
+
+    validate_files!([phraseapp_files, previous_locale_files, new_locale_files])
 
     new_locale_files = new_locale_files.index_by(&:name)
     phraseapp_files  = phraseapp_files.index_by(&:name)
@@ -45,39 +56,45 @@ class PhraseAppUpdater
       file.parsed_content != phraseapp_files[file.name].parsed_content
     end
 
-    upload_ids = phraseapp_api.upload_files(changed_files)
-    phraseapp_api.remove_keys_not_in_uploads(upload_ids)
+    upload_ids = @phraseapp_api.upload_files(changed_files)
+    @phraseapp_api.remove_keys_not_in_uploads(upload_ids)
 
     puts "Uploading #{default_locale_file}"
-    upload_id = phraseapp_api.upload_file(default_locale_file)
+    upload_id = @phraseapp_api.upload_file(default_locale_file)
 
     puts "Removing keys not in upload #{upload_id}"
-    phraseapp_api.remove_keys_not_in_upload(upload_id)
+    @phraseapp_api.remove_keys_not_in_upload(upload_id)
 
     LocaleFileUpdates.new(phraseapp_files.values, [default_locale_file] + resolved_files)
   end
 
-  def self.pull(phraseapp_api_key, phraseapp_project_id, fallback_locales_path)
-    phraseapp_api         = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id)
-    phraseapp_locales     = phraseapp_api.download_locales
+  def pull(fallback_locales_path)
+    phraseapp_locales = @phraseapp_api.download_locales
 
-    phraseapp_files, (fallback_files,) =
-      load_files(phraseapp_api, phraseapp_locales, true, fallback_locales_path)
+    phraseapp_files_without_unverified = load_phraseapp_files(phraseapp_locales, true)
+    phraseapp_files_with_unverified    = load_phraseapp_files(phraseapp_locales, false)
+    fallback_files                     = load_locale_files(fallback_locales_path).first
 
-    fallback_files = fallback_files.index_by(&:name)
+    validate_files!([phraseapp_files_with_unverified, phraseapp_files_without_unverified, fallback_files])
 
-    phraseapp_files.map do |phraseapp_file|
-      new_content = Differ.restore_deletions(phraseapp_file.parsed_content,
-                                             fallback_files[phraseapp_file.name].parsed_content)
-      LocaleFile.from_hash(phraseapp_file.name, new_content)
+    phraseapp_files_with_unverified = phraseapp_files_with_unverified.index_by(&:name)
+    fallback_files                  = fallback_files.index_by(&:name)
+
+    # Clean empty strings from the data and merge the fallback data in:
+    # we want to replace unverified keys with their values in the fallback
+    phraseapp_files_without_unverified.map do |phraseapp_without_unverified_file|
+      without_unverified = clear_empty_strings!(phraseapp_without_unverified_file.parsed_content)
+      with_unverified    = clear_empty_strings!(phraseapp_files_with_unverified[phraseapp_without_unverified_file.name].parsed_content)
+      fallback           = clear_empty_strings!(fallback_files[phraseapp_without_unverified_file.name].parsed_content)
+
+      restore_unverified_originals!(fallback, with_unverified, without_unverified)
+      LocaleFile.from_hash(phraseapp_without_unverified_file.name, without_unverified)
     end
   end
 
-  def self.load_config(config_file_path)
-    YMLConfigLoader.new(config_file_path)
-  end
+  private
 
-  def self.find_default_locale_file(locales, files)
+  def find_default_locale_file(locales, files)
     default_locale = locales.find(&:default?)
 
     default_locale_file = files.find do |file|
@@ -85,14 +102,18 @@ class PhraseAppUpdater
     end
   end
 
-  def self.load_files(phraseapp_api, phraseapp_locales, skip_unverified, *paths)
-    file_groups = paths.map do |path|
-       LocaleFileLoader.filenames(path).map { |l| LocaleFileLoader.load(l) }
+  def load_phraseapp_files(phraseapp_locales, skip_unverified)
+    @phraseapp_api.download_files(phraseapp_locales, skip_unverified)
+  end
+
+  def load_locale_files(*paths)
+    paths.map do |path|
+      LocaleFileLoader.filenames(path).map { |l| LocaleFileLoader.load(l) }
     end
+  end
 
-    phraseapp_files = phraseapp_api.download_files(phraseapp_locales, skip_unverified)
-
-    file_name_lists = [*file_groups, phraseapp_files].map do |files|
+  def validate_files!(file_groups)
+    file_name_lists = file_groups.map do |files|
       files.map(&:name).to_set
     end
 
@@ -102,8 +123,43 @@ class PhraseAppUpdater
       or removing langauges: #{file_name_lists}"
       raise RuntimeError.new(message)
     end
+  end
 
-    return [phraseapp_files, file_groups]
+  # Mutates without_verified to include the fallbacks where needed.
+  #
+  # For any keys in both `with_unverified` and `originals` but not present in
+  # `without_unverified`, restore the version from `originals` to
+  # `without_unverified`
+  def restore_unverified_originals!(fallback, with_unverified, without_unverified)
+    fallback.each do |key, value|
+      with_value = with_unverified[key]
+
+      case value
+      when Hash
+        if with_value.is_a?(Hash)
+          without_value = (without_unverified[key] ||= {})
+          restore_unverified_originals!(value, with_value, without_value)
+        end
+      else
+        if with_value && !with_value.is_a?(Hash) && !without_unverified.has_key?(key)
+          without_unverified[key] = value
+        end
+      end
+    end
+  end
+
+  def clear_empty_strings!(hash)
+    hash.delete_if do |key, value|
+      if value == ""
+        true
+      elsif value.is_a?(Hash)
+        clear_empty_strings!(value)
+        value.empty?
+      else
+        false
+      end
+    end
+    hash
   end
 
   class LocaleFileUpdates
