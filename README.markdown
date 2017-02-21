@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/iknow/phraseapp_updater.svg?branch=master)](https://travis-ci.org/iknow/phraseapp_updater)
 
-**Version** 0.1.3
+**Version** 0.1.4
 
 This is a tool for merging PhraseApp locale data with locale data
 committed in your project.

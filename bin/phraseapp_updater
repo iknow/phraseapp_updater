@@ -77,6 +77,19 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  desc "default", "Prints gem information"
+  option :version, aliases: [:v]
+
+  def default
+    if options[:v] || options[:version]
+      puts PhraseAppUpdater::VERSION
+    else
+      help
+    end
+  end
+
+  default_command :default
+
   private
 
   def load_phraseapp_credentials(options)
