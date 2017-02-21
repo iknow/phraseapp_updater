@@ -46,6 +46,7 @@ class PhraseAppUpdater
 
       download_params.file_format                  = "nested_json"
       download_params.skip_unverified_translations = skip_unverified
+      download_params.include_empty_translations   = false
 
       phraseapp_request { @client.locale_download(@project_id, locale.id, download_params) }
     end
