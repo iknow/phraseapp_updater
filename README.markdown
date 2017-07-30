@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/iknow/phraseapp_updater.svg?branch=master)](https://travis-ci.org/iknow/phraseapp_updater)
 
-**Version** 0.1.4
+**Version** 0.1.5
 
 This is a tool for merging PhraseApp locale data with locale data
 committed in your project.
@@ -89,7 +89,7 @@ committed to your application's respository.  These will be used in the
 merge with the files on PhraseApp.
 
 ```
-phraseapp_updater push --new_locales_path="/data/previous", --previous_locales_path="/data/new" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid"
+phraseapp_updater push --new_locales_path="/data/previous", --previous_locales_path="/data/new" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json"
 ```
 
 The arguments provided to the command can also be specified as shell
@@ -100,6 +100,7 @@ PA_NEW_LOCALES_PATH
 PA_PREVIOUS_LOCALES_PATH
 PA_API_KEY
 PA_PROJECT_ID
+PA_FILE_FORMAT
 ```
 
 Additionally, PhraseApp credentials can be loaded from a
@@ -118,7 +119,7 @@ If you want to pull without this fallback behavior, PhraseApp's [client](https:/
 is the best tool to use.
 
 ```
-phraseapp_updater pull --fallback_path="/data/app/locales" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid"
+phraseapp_updater pull --fallback_path="/data/app/locales" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json""
 ```
 
 The PhraseApp data passed to the command can also be specified as shell
@@ -127,6 +128,7 @@ variables:
 ```
 PA_API_KEY
 PA_PROJECT_ID
+PA_FILE_FORMAT
 ```
 
 Additionally, PhraseApp credentials can be loaded from a
@@ -138,8 +140,8 @@ Ruby
 `PhraseAppUpdater.push` and `PhraseAppUpdater.pull` are analogous to the command line versions:
 
 ```ruby
-PhraseAppUpdater.push("api_key", "project_id", "previous/path", "current/path")
-PhraseAppUpdater.pull("api_key", "project_id", "fallback/path")
+PhraseAppUpdater.new("api_key", "project_id", "file_format").push("previous/path", "current/path")
+PhraseAppUpdater.new("api_key", "project_id", "file_format").pull("fallback/path")
 ```
 
 

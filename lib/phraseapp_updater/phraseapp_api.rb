@@ -4,9 +4,10 @@ require 'thread'
 
 class PhraseAppUpdater
   class PhraseAppAPI
-    def initialize(api_key, project_id)
-      @client     = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
-      @project_id = project_id
+    def initialize(api_key, project_id, locale_file_class)
+      @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
+      @project_id        = project_id
+      @locale_file_class = locale_file_class
     end
 
     def download_locales
@@ -23,7 +24,7 @@ class PhraseAppUpdater
         puts "Downloading file for #{locale}"
         download_file(locale, skip_unverified)
       end.map do |locale, file_contents|
-        LocaleFile.new(locale.name, file_contents)
+        @locale_file_class.new(locale.name, file_contents)
       end
     end
 
