@@ -2,15 +2,16 @@ require 'phraseapp_updater/version'
 require 'phraseapp_updater/index_by'
 require 'phraseapp_updater/differ'
 require 'phraseapp_updater/locale_file'
-require 'phraseapp_updater/locale_file_loader'
+require 'phraseapp_updater/locale_file/loader'
 require 'phraseapp_updater/phraseapp_api'
 require 'phraseapp_updater/yml_config_loader'
 
 class PhraseAppUpdater
   using IndexBy
 
-  def initialize(phraseapp_api_key, phraseapp_project_id)
-    @phraseapp_api = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id)
+  def initialize(phraseapp_api_key, phraseapp_project_id, file_format)
+    @locale_file_class = LocaleFile.class_for_file_format(file_format)
+    @phraseapp_api     = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id, @locale_file_class)
   end
 
   def self.load_config(config_file_path)
@@ -38,7 +39,7 @@ class PhraseAppUpdater
                                          primary: new_locale_file.parsed_content,
                                          secondary: phraseapp_file.parsed_content)
 
-      LocaleFile.from_hash(previous_locale_file.name, resolved_content)
+      @locale_file_class.from_hash(previous_locale_file.name, resolved_content)
     end
 
     # Upload all of the secondary languages first,
@@ -88,7 +89,7 @@ class PhraseAppUpdater
       fallback           = clear_empty_strings!(fallback_files[phraseapp_without_unverified_file.name].parsed_content)
 
       restore_unverified_originals!(fallback, with_unverified, without_unverified)
-      LocaleFile.from_hash(phraseapp_without_unverified_file.name, without_unverified)
+      @locale_file_class.from_hash(phraseapp_without_unverified_file.name, without_unverified)
     end
   end
 
@@ -107,8 +108,9 @@ class PhraseAppUpdater
   end
 
   def load_locale_files(*paths)
+    loader = LocaleFile::Loader.new(@locale_file_class::EXTENSION)
     paths.map do |path|
-      LocaleFileLoader.filenames(path).map { |l| LocaleFileLoader.load(l) }
+      loader.filenames(path).map { |l| loader.load(l) }
     end
   end
 

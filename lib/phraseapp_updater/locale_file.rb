@@ -1,18 +1,28 @@
-require 'multi_json'
-require 'oj'
-
-# We're working with pure JSON, not
-# serialized Ruby objects
-Oj.default_options = {mode: :strict}
+require "phraseapp_updater/locale_file/json_file"
+require "phraseapp_updater/locale_file/yaml_file"
 
 class PhraseAppUpdater
   class LocaleFile
     attr_reader :name, :content, :parsed_content
 
+    class BadFileTypeError < StandardError ; end
+
     def self.from_hash(name, hash)
-      new(name, MultiJson.dump(hash))
+      raise RuntimeError.new("Must be implemented in a subclass.")
     end
 
+    def self.class_for_file_format(type)
+      case type.downcase
+      when "json"
+        JSONFile
+      when "yml", "yaml"
+        YAMLFile
+      else
+        raise BadFileTypeError.new("Invalid file type: #{type}")
+      end
+    end
+
+    # Expects a Ruby hash
     def initialize(name, content)
       @name           = name
       @content        = content
@@ -25,20 +35,17 @@ class PhraseAppUpdater
     end
 
     def name_with_extension
-      "#{name}.json"
+      "#{name}.#{self.class::EXTENSION}"
     end
 
     private
 
     def parse(content)
-      MultiJson.load(content)
-    rescue MultiJson::ParseError => e
-      raise ArgumentError.new("Provided content was not valid JSON")
+      raise RuntimeError.new("Must be implemented in a subclass.")
     end
 
     def format_content!
-      # Add indentation for better diffs
-      @content = MultiJson.dump(MultiJson.load(@content), pretty: true)
+      raise RuntimeError.new("Must be implemented in a subclass.")
     end
   end
 end
