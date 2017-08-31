@@ -1,6 +1,7 @@
 require 'phraseapp_updater/locale_file'
 require 'phraseapp-ruby'
 require 'thread'
+require 'tempfile'
 
 class PhraseAppUpdater
   class PhraseAppAPI
