@@ -32,6 +32,10 @@ class PhraseAppUpdater
 
     private
 
+    # TODO As this information is now duplicated in the file type
+    # classes, it would be better to pass this around and use it to determine
+    # which class to instantiate. Maybe? Should probably go along with a change
+    # to the command line which forces the use of PhraseApp types.
     def convert(phraseapp_file_format)
       case phraseapp_file_format
       when "nested_json"

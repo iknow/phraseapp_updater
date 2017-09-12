@@ -2,7 +2,9 @@ require 'psych'
 class PhraseAppUpdater
   class LocaleFile
     class YAMLFile < LocaleFile
-      EXTENSION = "yml"
+      EXTENSION      = "yml"
+      PHRASEAPP_TYPE = "yml"
+
       def self.from_hash(name, hash)
         new(name, Psych.dump(hash))
       end

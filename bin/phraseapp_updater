@@ -57,6 +57,7 @@ class PhraseAppUpdaterCLI < Thor
   option :phraseapp_api_key,     type: :string,                  desc: "PhraseApp API key. Shell variable: PA_API_KEY"
   option :phraseapp_project_id,  type: :string,                  desc: "PhraseApp project ID. Shell variable: PA_PROJECT_ID"
   option :config_file_path,      type: :string,                  desc: "Path to .phraseapp.yml config file to read API key and project ID."
+  option :file_format,           type: :string,                  desc: "Filetype of localization files."
 
   def pull
     phraseapp_api_key, phraseapp_project_id, file_format = load_phraseapp_configuration(options)

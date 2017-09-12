@@ -8,7 +8,9 @@ Oj.default_options = {mode: :strict}
 class PhraseAppUpdater
   class LocaleFile
     class JSONFile < LocaleFile
-      EXTENSION = "json"
+      EXTENSION      = "json"
+      PHRASEAPP_TYPE = "nested_json"
+
       def self.from_hash(name, hash)
         new(name, MultiJson.dump(hash))
       end

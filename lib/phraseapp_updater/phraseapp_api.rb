@@ -46,7 +46,7 @@ class PhraseAppUpdater
     def download_file(locale, skip_unverified)
       download_params = PhraseApp::RequestParams::LocaleDownloadParams.new
 
-      download_params.file_format                  = "nested_json"
+      download_params.file_format                  = @locale_file_class.const_get(:PHRASEAPP_TYPE)
       download_params.skip_unverified_translations = skip_unverified
 
       phraseapp_request { @client.locale_download(@project_id, locale.id, download_params) }
@@ -142,7 +142,7 @@ class PhraseAppUpdater
     def create_upload_params(locale_name)
       upload_params = PhraseApp::RequestParams::UploadParams.new
       upload_params.file_encoding       = "UTF-8"
-      upload_params.file_format         = "nested_json"
+      upload_params.file_format         = @locale_file_class.const_get(:PHRASEAPP_TYPE)
       upload_params.locale_id           = locale_name
       upload_params.skip_unverification = false
       upload_params.update_translations = true
