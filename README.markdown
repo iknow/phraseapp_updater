@@ -89,7 +89,7 @@ committed to your application's respository.  These will be used in the
 merge with the files on PhraseApp.
 
 ```
-phraseapp_updater push --new_locales_path="/data/previous", --previous_locales_path="/data/new" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json"
+phraseapp_updater push --new_locales_path="/data/new", --previous_locales_path="/data/previous" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json"
 ```
 
 The arguments provided to the command can also be specified as shell
@@ -160,7 +160,6 @@ If you'd like to contribute, these would be very helpful!
 * Separating downloading and resolving data from PhraseApp from pushing
   back up to it, to enable different kinds of workflows.
 * Expose the changed files on the command line.
-* Implement other `LocaleFile`s with `parse` for non-JSON types.
 * Checking if PhraseApp files changed during execution before upload, to reduce the race condition window.
 * More specs for the API and shell.
 
