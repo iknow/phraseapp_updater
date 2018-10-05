@@ -5,17 +5,16 @@ class PhraseAppUpdater
       EXTENSION      = "yml"
       PHRASEAPP_TYPE = "yml"
 
-      def self.from_hash(name, hash)
-        new(name, Psych.dump(hash))
-      end
+      class << self
+        def load(content)
+          Psych.load(content)
+        rescue Psych::SyntaxError => e
+          raise ArgumentError.new("Provided content was not valid YAML")
+        end
 
-      def parse(content)
-        Psych.load(content)
-      rescue Psych::SyntaxError => e
-        raise ArgumentError.new("Provided content was not valid YAML")
-      end
-
-      def format_content!
+        def dump(hash)
+          Psych.dump(hash)
+        end
       end
     end
   end

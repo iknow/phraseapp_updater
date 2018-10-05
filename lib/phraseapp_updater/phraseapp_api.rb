@@ -25,7 +25,7 @@ class PhraseAppUpdater
         puts "Downloading file for #{locale}"
         download_file(locale, skip_unverified)
       end.map do |locale, file_contents|
-        @locale_file_class.new(locale.name, file_contents)
+        @locale_file_class.from_file_content(locale.name, file_contents)
       end
     end
 

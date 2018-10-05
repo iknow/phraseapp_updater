@@ -12,7 +12,7 @@ class PhraseAppUpdater
           raise RuntimeError.new("Couldn't read localization file at #{filename}")
         end
 
-        LocaleFile.class_for_file_format(@extension).new(File.basename(filename).chomp(".#{@extension}"), File.read(filename))
+        LocaleFile.class_for_file_format(@extension).from_file_content(File.basename(filename).chomp(".#{@extension}"), File.read(filename))
       end
 
       def filenames(locale_directory)

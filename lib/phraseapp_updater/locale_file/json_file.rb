@@ -3,7 +3,7 @@ require 'oj'
 
 # We're working with pure JSON, not
 # serialized Ruby objects
-Oj.default_options = {mode: :strict}
+Oj.default_options = { mode: :strict }
 
 class PhraseAppUpdater
   class LocaleFile
@@ -11,21 +11,18 @@ class PhraseAppUpdater
       EXTENSION      = "json"
       PHRASEAPP_TYPE = "nested_json"
 
-      def self.from_hash(name, hash)
-        new(name, MultiJson.dump(hash))
-      end
+      class << self
+        def load(content)
+          Oj.load(content)
+        rescue Oj::ParseError => e
+          raise ArgumentError.new("Provided content was not valid JSON: #{e}")
+        end
 
-      def parse(content)
-        MultiJson.load(content)
-      rescue MultiJson::ParseError => e
-        raise ArgumentError.new("Provided content was not valid JSON: #{e}")
-      end
-
-      def format_content!
-        # Add indentation for better diffs
-        @content = MultiJson.dump(MultiJson.load(@content), pretty: true)
+        def dump(hash)
+          # Add indentation for better diffs
+          Oj.dump(hash, indent: 2, mode: :strict)
+        end
       end
     end
   end
 end
-
