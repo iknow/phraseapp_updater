@@ -39,7 +39,7 @@ class PhraseAppUpdater
     end
 
     def to_s
-      "#{name}, #{content[0, 20]}..."
+      name
     end
 
     def name_with_extension

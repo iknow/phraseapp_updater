@@ -11,12 +11,40 @@ class PhraseAppUpdater
       @locale_file_class = locale_file_class
     end
 
+    def create_project(name)
+      project = phraseapp_request do
+        params = PhraseApp::RequestParams::ProjectParams.new(
+          name: name,
+          main_format: @locale_file_class.const_get(:PHRASEAPP_TYPE),
+        )
+        @client.project_create(params)
+      end
+      @project_id = project.id
+    end
+
     def download_locales
       # This is a paginated API, however the maximum page size of 100
       # is well above our expected locale size,
       # so we take the first page only for now
       phraseapp_request { @client.locales_list(@project_id, 1, 100) }.map do |pa_locale|
         Locale.new(pa_locale)
+      end
+    end
+
+    def create_locales(names)
+      threaded_request(names) do |name|
+        create_locale(name)
+      end
+    end
+
+    def create_locale(name)
+      phraseapp_request do
+        params = PhraseApp::RequestParams::LocaleParams.new(
+          name: name,
+          code: name,
+          default: (name == 'en'), # Not generally applicable, but true for all our projects.
+        )
+        @client.locale_create(@project_id, params)
       end
     end
 
@@ -31,9 +59,9 @@ class PhraseAppUpdater
 
     def upload_files(locale_files)
       threaded_request(locale_files) do |locale_file|
-        puts "Uploading #{locale_file}"
+        STDERR.puts "Uploading #{locale_file}"
         upload_file(locale_file)
-      end.map { |locale_file, upload_id | upload_id }
+      end.map { |_locale_file, upload_id| upload_id }
     end
 
     def remove_keys_not_in_uploads(upload_ids)
@@ -72,7 +100,7 @@ class PhraseAppUpdater
 
       begin
         phraseapp_request { @client.keys_delete(@project_id, delete_params) }
-      rescue RuntimeError => e
+      rescue RuntimeError => _e
         # PhraseApp will accept but mark invalid uploads, however the gem
         # returns the same response in both cases. If we call this API
         # with the ID of an upload of a bad file, it will fail.
@@ -85,29 +113,31 @@ class PhraseAppUpdater
     private
 
     def phraseapp_request(&block)
-      begin
-        res, err = block.call
-      rescue RuntimeError => e
-        if e.message[/\(401\)/]
-          raise BadAPIKeyError.new(e)
-        elsif e.message[/not found/]
-          raise BadProjectIDError.new(e)
-        else
-          raise e
-        end
-      end
+      res, err = block.call
 
       unless err.nil?
-        if err.respond_to?(:error)
-          error = err.error
-        else
-          error = err.errors.join("|")
-        end
+        error =
+          if err.respond_to?(:error)
+            err.error
+          else
+            err.errors.join("|")
+          end
 
         raise RuntimeError.new(error)
       end
 
       res
+
+    rescue RuntimeError => e
+      if e.message.match?(/\(401\)/)
+        raise BadAPIKeyError.new(e)
+      elsif e.message.match?(/not found/)
+        raise BadProjectIDError.new(e)
+      elsif e.message.match?(/has already been taken/)
+        raise ProjectNameTakenError.new(e)
+      else
+        raise e
+      end
     end
 
     # PhraseApp allows two concurrent connections at a time.
@@ -182,6 +212,11 @@ class PhraseAppUpdater
         super(original_error.message)
       end
     end
+
+    class ProjectNameTakenError < RuntimeError
+      def initialize(original_error)
+        super(original_error.message)
+      end
+    end
   end
 end
-

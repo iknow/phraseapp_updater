@@ -9,6 +9,12 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
+  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format)
+    api = PhraseAppAPI.new(phraseapp_api_key, nil, LocaleFile.class_for_file_format(file_format))
+    project_id = api.create_project(phraseapp_project_name)
+    return self.new(phraseapp_api_key, project_id, file_format), project_id
+  end
+
   def initialize(phraseapp_api_key, phraseapp_project_id, file_format)
     @locale_file_class = LocaleFile.class_for_file_format(file_format)
     @phraseapp_api     = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id, @locale_file_class)
@@ -16,6 +22,12 @@ class PhraseAppUpdater
 
   def self.load_config(config_file_path)
     YMLConfigLoader.new(config_file_path)
+  end
+
+  def initial_push(initial_locales_path)
+    initial_locale_files, = load_locale_files(initial_locales_path)
+    @phraseapp_api.create_locales(initial_locale_files.map(&:name))
+    @phraseapp_api.upload_files(initial_locale_files)
   end
 
   def push(previous_locales_path, new_locales_path)
@@ -173,4 +185,3 @@ class PhraseAppUpdater
     end
   end
 end
-
