@@ -33,7 +33,7 @@ describe PhraseAppUpdater::LocaleFile::YAMLFile do
   end
 
   it 'returns a string representation' do
-    expect(locale_file.to_s).to eq "ja, ---\na: foo\nb: bar\n..."
+    expect(locale_file.to_s).to eq "ja"
   end
 
   it 'can be initialized from a hash' do

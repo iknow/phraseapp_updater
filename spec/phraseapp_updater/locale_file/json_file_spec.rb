@@ -31,7 +31,7 @@ describe PhraseAppUpdater::LocaleFile::JSONFile do
   end
 
   it 'returns a string representation' do
-    expect(locale_file.to_s).to eq "ja, {}\n..."
+    expect(locale_file.to_s).to eq "ja"
   end
 
   it 'can be initialized from a hash' do
