@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'multi_json'
 require 'oj'
 
@@ -21,6 +23,14 @@ class PhraseAppUpdater
         def dump(hash)
           # Add indentation for better diffs
           Oj.dump(hash, indent: 2, mode: :strict)
+        end
+
+        def extension
+          EXTENSION
+        end
+
+        def phraseapp_type
+          PHRASEAPP_TYPE
         end
       end
     end

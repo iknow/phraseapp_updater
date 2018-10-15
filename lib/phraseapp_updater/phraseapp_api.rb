@@ -1,9 +1,12 @@
 require 'phraseapp_updater/locale_file'
+require 'phraseapp_updater/index_by'
 require 'phraseapp-ruby'
 require 'thread'
+require 'parallel'
 require 'tempfile'
 
 class PhraseAppUpdater
+  using IndexBy
   class PhraseAppAPI
     def initialize(api_key, project_id, locale_file_class)
       @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
@@ -15,14 +18,15 @@ class PhraseAppUpdater
       project = phraseapp_request do
         params = PhraseApp::RequestParams::ProjectParams.new(
           name: name,
-          main_format: @locale_file_class.const_get(:PHRASEAPP_TYPE),
+          main_format: @locale_file_class.phraseapp_type,
         )
         @client.project_create(params)
       end
+      STDERR.puts "Created project #{name}"
       @project_id = project.id
     end
 
-    def download_locales
+    def fetch_locales
       # This is a paginated API, however the maximum page size of 100
       # is well above our expected locale size,
       # so we take the first page only for now
@@ -31,42 +35,45 @@ class PhraseAppUpdater
       end
     end
 
-    def create_locales(names)
-      threaded_request(names) do |name|
-        create_locale(name)
-      end
-    end
-
-    def create_locale(name)
+    def create_locale(name, default: false)
       phraseapp_request do
         params = PhraseApp::RequestParams::LocaleParams.new(
           name: name,
           code: name,
-          default: (name == 'en'), # Not generally applicable, but true for all our projects.
+          default: default,
         )
         @client.locale_create(@project_id, params)
       end
     end
 
-    def download_files(locales, skip_unverified)
-      threaded_request(locales) do |locale|
-        puts "Downloading file for #{locale}"
+    def download_files(locales, skip_unverified:)
+      results = threaded_request(locales) do |locale|
+        STDERR.puts "Downloading file for #{locale}"
         download_file(locale, skip_unverified)
-      end.map do |locale, file_contents|
+      end
+
+      locales.zip(results).map do |locale, file_contents|
         @locale_file_class.from_file_content(locale.name, file_contents)
       end
     end
 
-    def upload_files(locale_files)
+    def upload_files(locale_files, default_locale:)
+      known_locales = fetch_locales.index_by(&:name)
+
       threaded_request(locale_files) do |locale_file|
+        unless known_locales.has_key?(locale_file.locale_name)
+          create_locale(locale_file.locale_name,
+                        default: (locale_file.locale_name == default_locale))
+        end
+
         STDERR.puts "Uploading #{locale_file}"
         upload_file(locale_file)
-      end.map { |_locale_file, upload_id| upload_id }
+      end
     end
 
     def remove_keys_not_in_uploads(upload_ids)
       threaded_request(upload_ids) do |upload_id|
-        puts "Removing keys not in upload #{upload_id}"
+        STDERR.puts "Removing keys not in upload #{upload_id}"
         remove_keys_not_in_upload(upload_id)
       end
     end
@@ -74,18 +81,18 @@ class PhraseAppUpdater
     def download_file(locale, skip_unverified)
       download_params = PhraseApp::RequestParams::LocaleDownloadParams.new
 
-      download_params.file_format                  = @locale_file_class.const_get(:PHRASEAPP_TYPE)
+      download_params.file_format                  = @locale_file_class.phraseapp_type
       download_params.skip_unverified_translations = skip_unverified
 
       phraseapp_request { @client.locale_download(@project_id, locale.id, download_params) }
     end
 
     def upload_file(locale_file)
-      upload_params = create_upload_params(locale_file.name)
+      upload_params = create_upload_params(locale_file.locale_name)
 
       # The PhraseApp gem only accepts a filename to upload,
       # so we need to write the file out and pass it the path
-      Tempfile.create(["#{locale_file.name}", ".json"]) do |f|
+      Tempfile.create([locale_file.locale_name, ".json"]) do |f|
         f.write(locale_file.content)
         f.close
 
@@ -132,7 +139,7 @@ class PhraseAppUpdater
       if e.message.match?(/\(401\)/)
         raise BadAPIKeyError.new(e)
       elsif e.message.match?(/not found/)
-        raise BadProjectIDError.new(e)
+        raise BadProjectIDError.new(e, @project_id)
       elsif e.message.match?(/has already been taken/)
         raise ProjectNameTakenError.new(e)
       else
@@ -144,35 +151,13 @@ class PhraseAppUpdater
     THREAD_COUNT = 2
 
     def threaded_request(worklist, &block)
-      queue   = worklist.inject(Queue.new, :push)
-      threads = []
-
-      THREAD_COUNT.times do
-        threads << Thread.new do
-          Thread.current[:result] = {}
-
-          begin
-            while work = queue.pop(true) do
-              Thread.current[:result][work] = block.call(work)
-            end
-          rescue ThreadError => e
-            Thread.exit
-          end
-
-        end
-      end
-
-      threads.each(&:join)
-
-      threads.each_with_object({}) do |thread, results|
-        results.merge!(thread[:result])
-      end
+      Parallel.map(worklist, in_threads: THREAD_COUNT, &block)
     end
 
     def create_upload_params(locale_name)
       upload_params = PhraseApp::RequestParams::UploadParams.new
       upload_params.file_encoding       = "UTF-8"
-      upload_params.file_format         = @locale_file_class.const_get(:PHRASEAPP_TYPE)
+      upload_params.file_format         = @locale_file_class.phraseapp_type
       upload_params.locale_id           = locale_name
       upload_params.skip_unverification = false
       upload_params.update_translations = true
@@ -208,7 +193,10 @@ class PhraseAppUpdater
     end
 
     class BadProjectIDError < RuntimeError
-      def initialize(original_error)
+      attr_reader :project_id
+
+      def initialize(original_error, id)
+        @project_id = id
         super(original_error.message)
       end
     end

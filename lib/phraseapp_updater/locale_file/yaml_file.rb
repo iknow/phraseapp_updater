@@ -15,6 +15,14 @@ class PhraseAppUpdater
         def dump(hash)
           Psych.dump(hash)
         end
+
+        def extension
+          EXTENSION
+        end
+
+        def phraseapp_type
+          PHRASEAPP_TYPE
+        end
       end
     end
   end

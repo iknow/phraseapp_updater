@@ -10,12 +10,12 @@ describe PhraseAppUpdater::LocaleFile::YAMLFile do
     @content = "a: foo\nb: bar\n"
   end
 
-  it 'returns its name' do
-    expect(locale_file.name).to eq @name
+  it 'returns its locale_name' do
+    expect(locale_file.locale_name).to eq @name
   end
 
-  it 'returns its name with an extension' do
-    expect(locale_file.name_with_extension).to eq "#{@name}.yml"
+  it 'returns its filename' do
+    expect(locale_file.filename).to eq "#{@name}.yml"
   end
 
   it 'parses proper YAML' do
