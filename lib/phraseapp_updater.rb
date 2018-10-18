@@ -10,9 +10,9 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
-  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format)
+  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit)
     api = PhraseAppAPI.new(phraseapp_api_key, nil, LocaleFile.class_for_file_format(file_format))
-    project_id = api.create_project(phraseapp_project_name)
+    project_id = api.create_project(phraseapp_project_name, parent_commit)
     return self.new(phraseapp_api_key, project_id, file_format), project_id
   end
 
@@ -49,6 +49,14 @@ class PhraseAppUpdater
   def download_to_directory(path)
     locale_files = download_locale_files
     write_locale_directory(path, locale_files)
+  end
+
+  def update_parent_commit(parent_commit)
+    @phraseapp_api.store_parent_commit(parent_commit)
+  end
+
+  def read_parent_commit
+    @phraseapp_api.read_parent_commit
   end
 
   private

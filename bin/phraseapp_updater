@@ -6,12 +6,13 @@ require 'phraseapp_updater'
 
 class PhraseAppUpdaterCLI < Thor
   class_option :default_locale, type: :string, default: 'en',   desc: 'PhraseApp default locale'
-  class_option :file_format,    type: :string, default: 'json', desc: "Filetype of localization files."
+  class_option :file_format,    type: :string, default: 'json', desc: 'Filetype of localization files.'
 
   desc 'setup <locale_path>',
        'Create a new PhraseApp project, initializing it with locale files at <locale_path>. the new project ID is printed to STDOUT'
-  method_option :phraseapp_api_key,      type: :string, required: true, desc: "PhraseApp API key."
-  method_option :phraseapp_project_name, type: :string, required: true, desc: "Name for new PhraseApp project."
+  method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
+  method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
 
   def setup(locales_path)
     validate_readable_path!('locales', locales_path)
@@ -20,40 +21,73 @@ class PhraseAppUpdaterCLI < Thor
       updater, project_id = PhraseAppUpdater.for_new_project(
                  options[:phraseapp_api_key],
                  options[:phraseapp_project_name],
-                 options[:file_format])
+                 options[:file_format],
+                 options[:parent_commit])
 
       updater.upload_directory(locales_path)
+
       puts project_id
     end
   end
 
   desc 'download <target_path>',
        'Download and renormalize locale files from PhraseApp to <target_path>'
-  method_option :phraseapp_api_key,    type: :string, required: true, desc: "PhraseApp API key."
-  method_option :phraseapp_project_id, type: :string, required: true, desc: "PhraseApp project ID."
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+
   def download(target_path)
-    phraseapp_api_key = options[:phraseapp_api_key]
-    phraseapp_project_id = options[:phraseapp_project_id]
     validate_writable_path!('target path', target_path)
 
     handle_errors do
-      updater = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id, file_format)
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
       updater.download_to_directory(target_path)
+      parent_commit = updater.read_parent_commit
+
+      if parent_commit.nil?
+        STDERR.puts 'Error: Locales downloaded from phraseapp, but parent commit details missing'
+        exit(1)
+      end
+
+      puts parent_commit
     end
   end
 
   desc 'upload <locale_path>',
        'Renormalize and upload locale files at <locale_path> to PhraseApp, replacing current contents.'
-  method_option :phraseapp_api_key,    type: :string, required: true, desc: "PhraseApp API key."
-  method_option :phraseapp_project_id, type: :string, required: true, desc: "PhraseApp project ID."
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+
   def upload(source_path)
-    phraseapp_api_key = options[:phraseapp_api_key]
-    phraseapp_project_id = options[:phraseapp_project_id]
     validate_readable_path!('source path', source_path)
 
     handle_errors do
-      updater = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id, file_format)
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
       updater.upload_directory(source_path)
+      updater.update_parent_commit(options[:parent_commit])
+    end
+  end
+
+  desc 'update_parent_commit', 'Record a new merge-base on PhraseApp without changing contents.'
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+  def update_parent_commit
+    handle_errors do
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
+      updater.update_parent_commit(options[:parent_commit])
     end
   end
 
@@ -111,7 +145,7 @@ class PhraseAppUpdaterCLI < Thor
     updater.merge_files(ours, theirs, ancestor, to)
   end
 
-  desc "default", "Prints gem information"
+  desc 'default', 'Prints gem information'
   option :version, aliases: [:v]
 
   def default
@@ -128,21 +162,25 @@ class PhraseAppUpdaterCLI < Thor
 
   def handle_errors
     yield
-  rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError => _e
-    STDERR.puts "Bad PhraseApp API key."
+  rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError
+    STDERR.puts 'Bad PhraseApp API key.'
     exit(1)
-  rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => _e
+  rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
     STDERR.puts "Bad PhraseApp project ID: #{e.project_id}"
     exit(1)
-  rescue PhraseAppUpdater::PhraseAppAPI::ProjectNameTakenError => _e
+  rescue PhraseAppUpdater::PhraseAppAPI::ProjectNameTakenError
     STDERR.puts "PhraseApp project name already taken: #{options[:phraseapp_project_name]}"
     exit(1)
   rescue PhraseAppUpdater::LocaleFile::BadFileTypeError => e
     STDERR.puts "Bad filetype for localization files: #{e.message}"
     exit(1)
+  rescue PhraseAppUpdater::PhraseAppAPI::MissingGitParentError
+    STDERR.puts 'Git ancestor commit not recorded on PhraseApp project'
+    exit(1)
   rescue StandardError => e
-    STDERR.puts "Unknown error when pushing files."
-    raise e
+    STDERR.puts "Unknown error occurred: #{e.message}"
+    STDERR.puts e.stacktrace
+    exit(1)
   end
 
   def validate_readable_file!(name, file)

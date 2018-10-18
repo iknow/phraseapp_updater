@@ -1,35 +1,56 @@
+# frozen_string_literal: true
+
 require 'phraseapp_updater/locale_file'
 require 'phraseapp_updater/index_by'
 require 'phraseapp-ruby'
-require 'thread'
 require 'parallel'
 require 'tempfile'
 
 class PhraseAppUpdater
   using IndexBy
   class PhraseAppAPI
+    GIT_TAG_PREFIX = 'gitancestor_'
+
     def initialize(api_key, project_id, locale_file_class)
       @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
       @project_id        = project_id
       @locale_file_class = locale_file_class
     end
 
-    def create_project(name)
-      project = phraseapp_request do
-        params = PhraseApp::RequestParams::ProjectParams.new(
-          name: name,
-          main_format: @locale_file_class.phraseapp_type,
-        )
-        @client.project_create(params)
-      end
-      STDERR.puts "Created project #{name}"
+    def create_project(name, parent_commit)
+      params = PhraseApp::RequestParams::ProjectParams.new(
+        name: name,
+        main_format: @locale_file_class.phraseapp_type)
+      project = phraseapp_request { @client.project_create(params) }
+      STDERR.puts "Created project #{name} for #{parent_commit}"
+
       @project_id = project.id
+      store_parent_commit(parent_commit)
+
+      project.id
+    end
+
+    # We mark projects with their parent git commit using a tag with a
+    # well-known prefix. We only allow one tag with this prefix at once.
+    def read_parent_commit
+      tags = phraseapp_request { @client.tags_list(@project_id, 1, 100) }
+      git_tag = tags.detect { |t| t.name.start_with?(GIT_TAG_PREFIX) }
+      raise MissingGitParentError.new if git_tag.nil?
+
+      git_tag.name.delete_prefix(GIT_TAG_PREFIX)
+    end
+
+    def update_parent_commit(commit_hash)
+      previous_parent = read_parent_commit
+      phraseapp_request do
+        @client.tag_delete(@project_id, GIT_TAG_PREFIX + previous_parent)
+      end
+      store_parent_commit(commit_hash)
     end
 
     def fetch_locales
-      # This is a paginated API, however the maximum page size of 100
-      # is well above our expected locale size,
-      # so we take the first page only for now
+      # This is a paginated API, however the maximum page size of 100 is well
+      # above our expected locale size, so we take the first page only for now
       phraseapp_request { @client.locales_list(@project_id, 1, 100) }.map do |pa_locale|
         Locale.new(pa_locale)
       end
@@ -119,6 +140,12 @@ class PhraseAppUpdater
 
     private
 
+    def store_parent_commit(commit_hash)
+      params = PhraseApp::RequestParams::TagParams.new(
+        name: GIT_TAG_PREFIX + commit_hash)
+      phraseapp_request { @client.tag_create(@project_id, params) }
+    end
+
     def phraseapp_request(&block)
       res, err = block.call
 
@@ -127,7 +154,7 @@ class PhraseAppUpdater
           if err.respond_to?(:error)
             err.error
           else
-            err.errors.join("|")
+            err.errors.join('|')
           end
 
         raise RuntimeError.new(error)
@@ -143,7 +170,7 @@ class PhraseAppUpdater
       elsif e.message.match?(/has already been taken/)
         raise ProjectNameTakenError.new(e)
       else
-        raise e
+        raise
       end
     end
 
@@ -156,7 +183,7 @@ class PhraseAppUpdater
 
     def create_upload_params(locale_name)
       upload_params = PhraseApp::RequestParams::UploadParams.new
-      upload_params.file_encoding       = "UTF-8"
+      upload_params.file_encoding       = 'UTF-8'
       upload_params.file_format         = @locale_file_class.phraseapp_type
       upload_params.locale_id           = locale_name
       upload_params.skip_unverification = false
@@ -183,6 +210,12 @@ class PhraseAppUpdater
 
       def to_s
         "#{name} : #{id}"
+      end
+    end
+
+    class MissingGitParentError < RuntimeError
+      def initialize
+        super('Could not locate tag representing git ancestor commit')
       end
     end
 
