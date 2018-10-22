@@ -107,7 +107,7 @@ class PhraseAppUpdater
 
   def download_locale_files
     known_locales = @phraseapp_api.fetch_locales
-    @phraseapp_api.download_files(known_locales, skip_unverified: true)
+    @phraseapp_api.download_files(known_locales, skip_unverified: false)
   end
 
   def merge_locale_file(our_file, their_file, ancestor_file)
