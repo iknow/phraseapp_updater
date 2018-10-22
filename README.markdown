@@ -2,34 +2,28 @@
 
 [![Build Status](https://travis-ci.org/iknow/phraseapp_updater.svg?branch=master)](https://travis-ci.org/iknow/phraseapp_updater)
 
-**Version** 0.1.7
+**Version** 2.0.0
 
-This is a tool for merging PhraseApp locale data with locale data
-committed in your project.
+This is a tool for managing synchronization between locale data in
+[PhraseApp](https://phraseapp.com) and committed in your project. It can perform
+JSON-aware three-way merges with respect to a common ancestor, and maintains a
+record of the common ancestor on PhraseApp using tags.
 
-It can perform three-way merges of [PhraseApp](https://phraseapp.com) locale data with locale data commited to your application.
-It can also pull from PhraseApp, ignoring missing keys (this is very
-useful for using "unverified" status for marking a translation as a
-draft).
+Our workflow considers localization data stored on PhraseApp to be a working
+copy for a given branch. We expect developers working on the code and
+translators working on PhraseApp to both be able to make changes and have them
+integrated.
 
-Our current workflow has localizers working on a `master` project on
-PhraseApp. This regularly gets pulled into the `master` branch of our
-application and released. This branch is for "maintenance" localizations:
-ongoing translations of existing locale keys.
+PhraseApp provides [APIs](https://phraseapp.com/docs/api/v2/) and a [Ruby
+gem](https://github.com/phrase/phraseapp-ruby) for accessing them, but the API
+only allows either a) completely overwriting PhraseApp's data with local data or
+b) reapplying PhraseApp's data on top of the local data. Neither of these cases
+is appropriate for integrating changes made on both sides.
 
-However, we also introduce, remove, and change locale data by merging in
-feature branches to `master`. When we do this, we want to update the
-`master` PhraseApp project with the data newly-commited to our `master`
-branch. PhraseApp provides [APIs](https://phraseapp.com/docs/api/v2/) and a [Ruby gem](https://github.com/phrase/phraseapp-ruby) for accessing
-them, but the API only allows either a) completely overwriting
-PhraseApp's data or b) reapplying PhraseApp's data on top of the
-uploaded data.
-
-What we want instead is a three way merge where the committed data wins
-on conflict. Non-conflicting changes on PhraseApp are preserved, while
-changes on both sides take the committed data. The result of the merge
-is then sent to PhraseApp, keeping it up-to-date with the newest commit
-of `master`.
+What we want instead is a three way merge where the committed data wins on
+conflict. Non-conflicting changes on PhraseApp are preserved, while changes to
+the same key on both sides take the committed data. The result of the merge is
+then applied to both sides, keeping them up to date with each other.
 
 This is especially important when removing keys. Imagine we have the
 following, no-longer useful key:
@@ -48,9 +42,8 @@ unused:
   zero: No unused's
 ```
 
-And in our feature branch, we remove it. The result we want is that the
-key completely disappears, instead of getting a result like either of
-the above.
+And in our feature branch, we remove it. The result we want is that the key
+completely disappears, instead of getting a result like either of the above.
 
 ## Installation
 
@@ -80,68 +73,63 @@ Or install it yourself as:
 CLI
 ---
 
-**Push**
+**Setup**
 
-`phraseapp_updater push` operates on two directories and your PhraseApp API
-data. The two directories should contain the previous revision of your
-locale files from PhraseApp and the latest revision of the same files
-committed to your application's respository.  These will be used in the
-merge with the files on PhraseApp.
+`phraseapp_updater setup` creates and initializes a PhraseApp project
+corresponding to your branch. It must be provided with the current git revision
+of the branch and the path to the locales.
 
 ```
-phraseapp_updater push --new_locales_path="/data/new", --previous_locales_path="/data/previous" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json"
+phraseapp_updater setup --phraseapp_project_name="yourbranch" --parent_commit="yourhash" --phraseapp_api_key=yourkey" path_to_locales
 ```
 
-The arguments provided to the command can also be specified as shell
-variables:
+**Download**
+
+`phraseapp_updater download` downloads and normalizes locale files from
+PhraseApp, saving them to the specified location. The revision of the recorded
+common ancestor is printed to standard out.
 
 ```
-PA_NEW_LOCALES_PATH
-PA_PREVIOUS_LOCALES_PATH
-PA_API_KEY
-PA_PROJECT_ID
-PA_FILE_FORMAT
+phraseapp_updater download --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" target_path
 ```
 
-Additionally, PhraseApp credentials can be loaded from a
-`.phraseapp.yml` file, specified with `--config-file-path`
+**Upload**
 
-**Pull**
-
-`phraseapp_updater pull` pulls data down from your PhraseApp project.
-However, when keys are missing from the PhraseApp data, it restores them
-(if present) from the files at fallback path provided. This allows you
-to mark keys as "unverified" on PhraseApp, meaning you don't pull in
-draft translations, while allowing you to keep the current version of
-that translation.
-
-If you want to pull without this fallback behavior, PhraseApp's [client](https://phraseapp.com/docs/developers/cli/)
-is the best tool to use.
+`phraseapp_updater upload` uploads normalized locale files from your branch to
+PhraseApp and resets the recorded common ancestor to the specified revision.
 
 ```
-phraseapp_updater pull --fallback_path="/data/app/locales" --phraseapp_api_key="yourkey" --phraseapp_project_id="projectid --file_format=json""
+phraseapp_updater upload --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" path_to_locales
 ```
 
-The PhraseApp data passed to the command can also be specified as shell
-variables:
+**Update Parent Commit**
+`phraseapp_updater update_parent_commit` records a new common ancestor on
+PhraseApp without changing the locales.
 
 ```
-PA_API_KEY
-PA_PROJECT_ID
-PA_FILE_FORMAT
+phraseapp_updater update_parent_commit --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" --parent_commit="yourhash"
 ```
 
-Additionally, PhraseApp credentials can be loaded from a
-`.phraseapp.yml` file, specified with `--config-file-path`
+**Merge**
 
-Ruby
----
+`phraseapp_updater merge` performs a content-aware three-way merge between
+locale files in three directories: `ancestor_path`, `our_path`, and
+`their_path`. In the case of conflicts, the changes from `our_path` are
+accepted. The results are normalized and written to the path specified with
+`to`.
 
-`PhraseAppUpdater.push` and `PhraseAppUpdater.pull` are analogous to the command line versions:
+```
+phraseapp_updater merge ancestor_path our_path their_path --to target_path
+```
 
-```ruby
-PhraseAppUpdater.new("api_key", "project_id", "file_format").push("previous/path", "current/path")
-PhraseAppUpdater.new("api_key", "project_id", "file_format").pull("fallback/path")
+
+**Diff**
+
+Performs a content-aware diff between locale files in two directories. Returns
+with exit status 1 or 0 to signal differences or no differences respectively
+
+```
+phraseapp_updater diff path1 path2
 ```
 
 
@@ -157,8 +145,11 @@ https://gist.github.com/kevingriffin/d59821446ce424a56c7da2686d4ae082
 
 If you'd like to contribute, these would be very helpful!
 
-* Separating downloading and resolving data from PhraseApp from pushing
-  back up to it, to enable different kinds of workflows.
+* We'd like to use "unverified" translations on PhraseApp as the equivalent of
+  an unstaged working copy. For this to work, we need to be able to recover
+  previous translations at the same key. While PhraseApp doesn't itself keep
+  this history, we could do this by restoring the absent keys from the diff
+  between verified and unverified download from the common ancestor.
 * Expose the changed files on the command line.
 * Checking if PhraseApp files changed during execution before upload, to reduce the race condition window.
 * More specs for the API and shell.
