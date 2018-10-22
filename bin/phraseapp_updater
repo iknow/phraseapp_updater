@@ -30,6 +30,31 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  desc 'synchronize <git_checkout_path>',
+       'Synchronize locales in PhraseApp with '
+  method_option :phraseapp_api_key,    type: :string, required: true,            desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true,            desc: 'PhraseApp project ID.'
+  method_option :branch,               type: :string, required: false,           desc: 'Name of (remote) git branch to synchronize'
+  method_option :remote,               type: :string, required: false,           desc: 'Name of git remote to synchronize with'
+  method_option :prefix,               type: :string, default: 'config/locales', desc: 'Path prefix in git branch for locale files'
+  method_option :no_commit,            type: :boolean, default: false,           desc: 'Do not commit merge results to the branch'
+
+  def synchronize(checkout_path)
+    validate_readable_path!('checkout path', checkout_path)
+    Dir.chdir(checkout_path)
+
+    ENV['PHRASEAPP_API_KEY']    = options[:phraseapp_api_key]
+    ENV['PHRASEAPP_PROJECT_ID'] = options[:phraseapp_project_id]
+    ENV['FILE_FORMAT'] = options[:file_format]
+    ENV['NO_COMMIT']   = options[:no_commit] ? 't' : 'f'
+    ENV['PREFIX']      = options[:prefix]
+    ENV['BRANCH']      = options.fetch(:branch) { sh('git name-rev --name-only HEAD').chomp }
+    ENV['REMOTE']      = options.fetch(:remote) { sh("git config branch.#{ENV['BRANCH']}.remote").chomp }
+
+    shell_script_path = File.join(__dir__, 'synchronize_phraseapp.sh')
+    exec(shell_script_path)
+  end
+
   desc 'download <target_path>',
        'Download and renormalize locale files from PhraseApp to <target_path>'
   method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
@@ -255,6 +280,12 @@ class PhraseAppUpdaterCLI < Thor
 
     unless File.writable?(path) && File.directory?(path)
       raise RuntimeError.new("#{name} path is not a writable directory: #{path}")
+    end
+  end
+
+  def sh(x)
+    `#{x}`.tap do
+      raise RuntimeError.new("Shell command failed: '#{x}'") unless $?.success?
     end
   end
 end
