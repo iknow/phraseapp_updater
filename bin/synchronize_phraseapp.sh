@@ -70,10 +70,6 @@ branch_changed=$(if locales_changed "${common_ancestor_path}" "${current_branch_
 if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
     echo "$BRANCH branch and PhraseApp both changed: 3-way merging" >&2
 
-    phraseapp_commit=$(git commit-tree "${current_phraseapp_tree}" \
-                           -p "${common_ancestor}" \
-                           -m "Remote locale changes made on PhraseApp (drop when rebasing)")
-
     # 3-way merge
     merge_resolution_path=$(make_temporary_directory)
     phraseapp_updater merge "${common_ancestor_path}" "${current_branch_path}" "${current_phraseapp_path}" \
@@ -81,7 +77,12 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
                       --file_format="${FILE_FORMAT}"
 
     if [ "$NO_COMMIT" != 't' ]; then
-        # Commit merge result to prefix in branch
+        # Create a commit to record the pre-merge state of PhraseApp
+        phraseapp_commit=$(git commit-tree "${current_phraseapp_tree}" \
+                               -p "${common_ancestor}" \
+                               -m "Remote locale changes made on PhraseApp (drop when rebasing)")
+
+        # Commit merge result to PREFIX in BRANCH
         merge_resolution_tree=$(make_tree_from_directory "${merge_resolution_path}")
         merged_branch_tree=$(replace_nested_tree "${current_branch}^{tree}" "${PREFIX}" "${merge_resolution_tree}")
 
@@ -94,7 +95,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
         git push "${REMOTE}" "${merge_commit}:refs/heads/${BRANCH}"
         new_parent_commit="${merge_commit}"
     else
-        # Merge is only to phraseapp: record new common ancestor
+        # Merge is only to phraseapp: record current branch as new common ancestor
         echo "Not committing to $BRANCH" >&2
         new_parent_commit="${current_branch}"
     fi

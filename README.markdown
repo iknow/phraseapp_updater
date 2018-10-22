@@ -77,10 +77,26 @@ CLI
 
 `phraseapp_updater setup` creates and initializes a PhraseApp project
 corresponding to your branch. It must be provided with the current git revision
-of the branch and the path to the locales.
+of the branch and the path to the locale files.
 
 ```
 phraseapp_updater setup --phraseapp_project_name="yourbranch" --parent_commit="yourhash" --phraseapp_api_key=yourkey" path_to_locales
+```
+
+**Synchronize**
+
+`phraseapp_updater synchronize` synchronizes a git remote branch with its
+corresponding PhraseApp project, incorporating changes from each side into the
+other. If both sides were changed, a three-way merge is performed. The result is
+uploaded to PhraseApp and committed and pushed to the git remote as appropriate.
+
+The option `--no_commit` may be provided to restrict changes to the PhraseApp
+side. If specified, then in the case that the branch was modified, the merge
+result will be uploaded to PhraseApp and the common ancestor updated to the
+branch head.
+
+```
+phraseapp_updater synchronize <checkout_path>
 ```
 
 **Download**
