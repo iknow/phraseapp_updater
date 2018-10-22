@@ -91,6 +91,32 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  desc 'diff <path1> <path2>',
+       'Compare locale file directories <path1> and <path2>'
+
+  long_desc <<-LONGDESC
+    Perform a JSON diff of locale files in path1 and path2.
+    Exits with 1 if there were differences, or 0 if no differences"
+  LONGDESC
+
+  method_option :quiet, type: :boolean, default: false, desc: 'Suppress output'
+
+  def diff(path1, path2)
+    validate_readable_path!('path1', path1)
+    validate_readable_path!('path2', path2)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(nil, nil, options[:file_format])
+      diffs = updater.diff_directories(path1, path2)
+      if diffs.empty?
+        exit(0)
+      else
+        print_diff(diffs) unless options[:quiet]
+        exit(1)
+      end
+    end
+  end
+
   desc 'merge <ancestor_path> <our_path> <their_path>',
        '3-way merge locale file directories <ancestor_path>, <our_path>, <their_path> into TO.'
 
@@ -111,7 +137,7 @@ class PhraseAppUpdaterCLI < Thor
     validate_writable_path!('to', result_path)
 
     handle_errors do
-      updater = PhraseAppUpdater.new(nil, nil, file_format)
+      updater = PhraseAppUpdater.new(nil, nil, options[:file_format])
       updater.merge_directories(our_path, their_path, ancestor_path, result_path)
     end
   end
@@ -160,6 +186,21 @@ class PhraseAppUpdaterCLI < Thor
 
   private
 
+  def print_diff(diffs)
+    normalized_diffs = diffs.flat_map do |diff|
+      type, path, c1, c2 = diff
+      if type == '~'
+        [['-', path, c1], ['+', path, c2]]
+      else
+        [diff]
+      end
+    end
+
+    normalized_diffs.each do |type, path, change|
+      puts "#{type} #{path}: #{change}"
+    end
+  end
+
   def handle_errors
     yield
   rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError
@@ -179,7 +220,7 @@ class PhraseAppUpdaterCLI < Thor
     exit(1)
   rescue StandardError => e
     STDERR.puts "Unknown error occurred: #{e.message}"
-    STDERR.puts e.stacktrace
+    STDERR.puts e.backtrace
     exit(1)
   end
 

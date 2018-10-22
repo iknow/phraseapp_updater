@@ -22,6 +22,11 @@ class PhraseAppUpdater
     @phraseapp_api     = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id, @locale_file_class)
   end
 
+  def diff_directories(our_path, their_path)
+    (our_locales, their_locales) = load_locale_directories(our_path, their_path)
+    diff_locale_files(our_locales, their_locales)
+  end
+
   def merge_directories(our_path, their_path, ancestor_path, result_path)
     (our_locales, their_locales, ancestor_locales) =
       load_locale_directories(our_path, their_path, ancestor_path)
@@ -52,7 +57,7 @@ class PhraseAppUpdater
   end
 
   def update_parent_commit(parent_commit)
-    @phraseapp_api.store_parent_commit(parent_commit)
+    @phraseapp_api.update_parent_commit(parent_commit)
   end
 
   def read_parent_commit
@@ -61,14 +66,22 @@ class PhraseAppUpdater
 
   private
 
+  def diff_locale_files(our_locales, their_locales)
+    (our_content, their_content) = [our_locales, their_locales].map do |locales|
+      locales.each_with_object({}) do |locale, h|
+        h[locale.locale_name] = locale.parsed_content
+      end
+    end
+
+    HashDiff.diff(our_content, their_content)
+  end
+
   def merge_locale_files(our_locales, their_locales, ancestor_locales)
     ours      = our_locales.index_by(&:locale_name)
     theirs    = their_locales.index_by(&:locale_name)
     ancestors = ancestor_locales.index_by(&:locale_name)
 
-    locale_names = Set.new
-                     .merge(ours.keys)
-                     .merge(their_files.keys)
+    locale_names = Set.new.merge(ours.keys).merge(theirs.keys)
 
     locale_names.map do |locale_name|
       our_file      = ours.fetch(locale_name)
@@ -103,7 +116,7 @@ class PhraseAppUpdater
     elsif their_file.nil?
       our_file
     else
-      ancestor_file ||= @locale_file_class.from_hash(locale_name, {})
+      ancestor_file ||= empty_locale_file(our_file.locale_name)
 
       resolved_content = Differ.resolve!(
         original:  ancestor_file.parsed_content,
@@ -112,6 +125,10 @@ class PhraseAppUpdater
 
       @locale_file_class.from_hash(our_file.locale_name, resolved_content)
     end
+  end
+
+  def empty_locale_file(locale_name)
+    @locale_file_class.from_hash(locale_name, {})
   end
 
   def load_locale_files(*filenames)
