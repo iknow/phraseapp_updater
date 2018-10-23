@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class PhraseAppUpdater
-  VERSION = "0.1.7"
+  VERSION = "2.0.0"
 end

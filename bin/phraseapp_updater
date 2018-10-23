@@ -1,89 +1,202 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require 'thor'
 require 'phraseapp_updater'
 
 class PhraseAppUpdaterCLI < Thor
-  desc "push", "Update PhraseApp project via a 3-way merge with local locale files and PhraseApp data."
-  option :new_locales_path,                type: :string, desc: "Path to newest revision of local files. Shell variable: PA_NEW_LOCALES_PATH"
-  option :previous_locales_path,           type: :string, desc: "Path to previous revision of local files. Shell variable: PA_PREVIOUS_LOCALES_PATH"
-  option :phraseapp_api_key,               type: :string, desc: "PhraseApp API key. Shell variable: PA_API_KEY"
-  option :phraseapp_project_id,            type: :string, desc: "PhraseApp project ID. Shell variable: PA_PROJECT_ID"
-  option :config_file_path,                type: :string, desc: "Path to .phraseapp.yml config file to read API key and project ID."
-  option :store_results_path,              type: :string, desc: "Path to write the resolved files. Shell variable: PA_STORE_RESULTS_PATH"
-  option :store_phraseapp_originals_path,  type: :string, desc: "Path to write the files downloaded from PhraseApp before the merge. Shell variable: PA_STORE_PHRASEAPP_ORIGINALS_PATH"
-  option :file_format,                     type: :string, desc: "Filetype of localization files."
+  class_option :default_locale, type: :string, default: 'en',   desc: 'PhraseApp default locale'
+  class_option :file_format,    type: :string, default: 'json', desc: 'Filetype of localization files.'
 
-  def push
-    phraseapp_api_key, phraseapp_project_id, file_format = load_phraseapp_configuration(options)
+  desc 'setup <locale_path>',
+       'Create a new PhraseApp project, initializing it with locale files at <locale_path>. the new project ID is printed to STDOUT'
+  method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
+  method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
 
-    new_locales_path = options.fetch(:new_locales_path, ENV["PA_NEW_LOCALES_PATH"]).to_s
-    validate_readable_path!('new_locales_path', new_locales_path)
+  def setup(locales_path)
+    validate_readable_path!('locales', locales_path)
 
-    previous_locales_path = options.fetch(:previous_locales_path, ENV["PA_PREVIOUS_LOCALES_PATH"]).to_s
-    validate_readable_path!('previous_locales_path', previous_locales_path)
+    handle_errors do
+      updater, project_id = PhraseAppUpdater.for_new_project(
+                 options[:phraseapp_api_key],
+                 options[:phraseapp_project_name],
+                 options[:file_format],
+                 options[:parent_commit])
 
-    store_results_path = options.fetch(:store_results_path, ENV["PA_STORE_RESULTS_PATH"]).to_s
-    validate_writable_path!('store_results_path', store_results_path)
+      updater.upload_directory(locales_path)
 
-    store_phraseapp_originals_path = options.fetch(:store_phraseapp_originals_path, ENV["PA_STORE_PHRASEAPP_ORIGINALS_PATH"]).to_s
-    validate_writable_path!('store_phraseapp_originals_path', store_phraseapp_originals_path)
-
-    begin
-      result = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id, file_format).push(previous_locales_path, new_locales_path)
-
-      unless store_results_path.empty?
-        write_locale_files(store_results_path, result.resolved_files)
-      end
-
-      unless store_phraseapp_originals_path.empty?
-        write_locale_files(store_phraseapp_originals_path, result.original_phraseapp_files)
-      end
-    rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError => e
-      puts "Bad PhraseApp API key."
-    rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
-      puts "Bad PhraseApp project ID: #{phraseapp_project_id}"
-    rescue PhraseAppUpdater::LocaleFile::BadFileTypeError => e
-      puts "Bad filetype for localization files: #{e.message}"
-    rescue StandardError => e
-      puts "Unknown error when pushing files."
-      raise e
+      puts project_id
     end
   end
 
+  desc 'synchronize <git_checkout_path>',
+       'Synchronize locales in PhraseApp with '
+  method_option :phraseapp_api_key,    type: :string, required: true,            desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true,            desc: 'PhraseApp project ID.'
+  method_option :branch,               type: :string, required: false,           desc: 'Name of (remote) git branch to synchronize'
+  method_option :remote,               type: :string, required: false,           desc: 'Name of git remote to synchronize with'
+  method_option :prefix,               type: :string, default: 'config/locales', desc: 'Path prefix in git branch for locale files'
+  method_option :no_commit,            type: :boolean, default: false,           desc: 'Do not commit merge results to the branch'
 
-  desc "pull", "Pulls data from PhraseApp for deployment, replacing missing keys from fallback."
-  option :fallback_path,         type: :string,  required: true, desc: "Path to the files to restore missing keys from."
-  option :destination_path,      type: :string,                  desc: "Path to write the resolved files to. If not provided, --fallback_path is used."
-  option :phraseapp_api_key,     type: :string,                  desc: "PhraseApp API key. Shell variable: PA_API_KEY"
-  option :phraseapp_project_id,  type: :string,                  desc: "PhraseApp project ID. Shell variable: PA_PROJECT_ID"
-  option :config_file_path,      type: :string,                  desc: "Path to .phraseapp.yml config file to read API key and project ID."
-  option :file_format,           type: :string,                  desc: "Filetype of localization files."
+  def synchronize(checkout_path)
+    validate_readable_path!('checkout path', checkout_path)
+    Dir.chdir(checkout_path)
 
-  def pull
-    phraseapp_api_key, phraseapp_project_id, file_format = load_phraseapp_configuration(options)
+    ENV['PHRASEAPP_API_KEY']    = options[:phraseapp_api_key]
+    ENV['PHRASEAPP_PROJECT_ID'] = options[:phraseapp_project_id]
+    ENV['FILE_FORMAT'] = options[:file_format]
+    ENV['NO_COMMIT']   = options[:no_commit] ? 't' : 'f'
+    ENV['PREFIX']      = options[:prefix]
+    ENV['BRANCH']      = options.fetch(:branch) { sh('git name-rev --name-only HEAD').chomp }
+    ENV['REMOTE']      = options.fetch(:remote) { sh("git config branch.#{ENV['BRANCH']}.remote").chomp }
 
-    fallback_path = options[:fallback_path]
-    validate_readable_path!('fallback_path', fallback_path)
+    shell_script_path = File.join(__dir__, 'synchronize_phraseapp.sh')
+    exec(shell_script_path)
+  end
 
-    destination_path = options.fetch(:destination_path, fallback_path).to_s
-    validate_writable_path!('destination_path', destination_path)
+  desc 'download <target_path>',
+       'Download and renormalize locale files from PhraseApp to <target_path>'
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
 
-    begin
-      files = PhraseAppUpdater.new(phraseapp_api_key, phraseapp_project_id, file_format).pull(fallback_path)
-      write_locale_files(destination_path, files)
-    rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError => e
-      puts "Bad PhraseApp API key."
-    rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
-      puts "Bad PhraseApp project ID: #{phraseapp_project_id}"
-    rescue PhraseAppUpdater::LocaleFile::BadFileTypeError => e
-      puts "Bad filetype for localization files: #{e.message}"
-    rescue StandardError => e
-      puts "Unknown error when pulling files"
-      raise e
+  def download(target_path)
+    validate_writable_path!('target path', target_path)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
+      updater.download_to_directory(target_path)
+      parent_commit = updater.read_parent_commit
+
+      if parent_commit.nil?
+        STDERR.puts 'Error: Locales downloaded from phraseapp, but parent commit details missing'
+        exit(1)
+      end
+
+      puts parent_commit
     end
   end
 
-  desc "default", "Prints gem information"
+  desc 'upload <locale_path>',
+       'Renormalize and upload locale files at <locale_path> to PhraseApp, replacing current contents.'
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+
+  def upload(source_path)
+    validate_readable_path!('source path', source_path)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
+      updater.upload_directory(source_path)
+      updater.update_parent_commit(options[:parent_commit])
+    end
+  end
+
+  desc 'update_parent_commit', 'Record a new merge-base on PhraseApp without changing contents.'
+  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+  def update_parent_commit
+    handle_errors do
+      updater = PhraseAppUpdater.new(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_id],
+        options[:file_format])
+
+      updater.update_parent_commit(options[:parent_commit])
+    end
+  end
+
+  desc 'diff <path1> <path2>',
+       'Compare locale file directories <path1> and <path2>'
+
+  long_desc <<-LONGDESC
+    Perform a JSON diff of locale files in path1 and path2.
+    Exits with 1 if there were differences, or 0 if no differences"
+  LONGDESC
+
+  method_option :quiet, type: :boolean, default: false, desc: 'Suppress output'
+
+  def diff(path1, path2)
+    validate_readable_path!('path1', path1)
+    validate_readable_path!('path2', path2)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(nil, nil, options[:file_format])
+      diffs = updater.diff_directories(path1, path2)
+      if diffs.empty?
+        exit(0)
+      else
+        print_diff(diffs) unless options[:quiet]
+        exit(1)
+      end
+    end
+  end
+
+  desc 'merge <ancestor_path> <our_path> <their_path>',
+       '3-way merge locale file directories <ancestor_path>, <our_path>, <their_path> into TO.'
+
+  long_desc <<-LONGDESC
+    Perform a JSON-aware 3-way merge of locale files in directories <ancestor_path>, <our_path>, <their_path> into TO.
+
+    The merge resolution strategy always selects `ours` in the case of a conflict.
+  LONGDESC
+
+  method_option :to, type: :string, required: true, desc: 'Target directory'
+
+  def merge(ancestor_path, our_path, their_path)
+    validate_readable_path!('ancestor_path', ancestor_path)
+    validate_readable_path!('our_path', our_path)
+    validate_readable_path!('their_path', their_path)
+
+    result_path = options[:to]
+    validate_writable_path!('to', result_path)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(nil, nil, options[:file_format])
+      updater.merge_directories(our_path, their_path, ancestor_path, result_path)
+    end
+  end
+
+  desc 'merge_file <ancestor> <ours> <theirs>',
+       'Perform 3-way merge of a single file into TO'
+
+  long_desc <<-LONGDESC
+    Perform 3-way merge of a single file into TO
+
+    Intended for use as a git merge-driver with:
+      [merge "phraseapp-locale"]
+        name = PhraseApp locale file merge driver
+        driver = phraseapp_updater merge_file %O %A %B --to %P
+  LONGDESC
+
+  method_option :to, type: :string, required: true, desc: 'Target file'
+
+  def merge_file(ancestor, ours, theirs)
+    validate_readable_file!('ancestor', ancestor)
+    validate_readable_file!('ours', ours)
+    validate_readable_file!('theirs', theirs)
+    validate_writable_file!('to', to)
+
+    # Git provides an empty file when there is no common ancestor in the
+    # merge-base. Because we want to merge from an empty hash structure instead,
+    # pass `nil` to `merge_files`.
+    ancestor = nil if File.zero?(ancestor)
+
+    updater = PhraseAppUpdater.new(nil, nil, file_format)
+    updater.merge_files(ours, theirs, ancestor, to)
+  end
+
+  desc 'default', 'Prints gem information'
   option :version, aliases: [:v]
 
   def default
@@ -98,37 +211,54 @@ class PhraseAppUpdaterCLI < Thor
 
   private
 
-  def load_phraseapp_configuration(options)
-    if options[:config_file_path]
-
-      if [:phraseapp_api_key, :phraseapp_project_id, :file_format].any? { |option| options.has_key?(:option) }
-        raise RuntimeError.new("Provided both a path to PhraseApp config file and command line arguments. Specify only one. #{options}")
+  def print_diff(diffs)
+    normalized_diffs = diffs.flat_map do |diff|
+      type, path, c1, c2 = diff
+      if type == '~'
+        [['-', path, c1], ['+', path, c2]]
+      else
+        [diff]
       end
-
-      config = PhraseAppUpdater.load_config(options[:config_file_path])
-
-      phraseapp_api_key    = config.api_key
-      phraseapp_project_id = config.project_id
-      file_format          = config.file_format
-    else
-      phraseapp_api_key    = options.fetch(:phraseapp_api_key, ENV["PA_API_KEY"]).to_s
-      phraseapp_project_id = options.fetch(:phraseapp_project_id, ENV["PA_PROJECT_ID"]).to_s
-      file_format          = options.fetch(:file_format, ENV["PA_FILE_FORMAT"]).to_s
     end
 
-    if phraseapp_api_key.empty?
-      raise RuntimeError.new("Must provide Phraseapp API key. --phraseapp_api_key or PA_API_KEY")
+    normalized_diffs.each do |type, path, change|
+      puts "#{type} #{path}: #{change}"
     end
+  end
 
-    if phraseapp_project_id.empty?
-      raise RuntimeError.new("Must provide Phraseapp project ID. --phraseapp_project_id or PA_PROJECT_ID")
+  def handle_errors
+    yield
+  rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError
+    STDERR.puts 'Bad PhraseApp API key.'
+    exit(1)
+  rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
+    STDERR.puts "Bad PhraseApp project ID: #{e.project_id}"
+    exit(1)
+  rescue PhraseAppUpdater::PhraseAppAPI::ProjectNameTakenError
+    STDERR.puts "PhraseApp project name already taken: #{options[:phraseapp_project_name]}"
+    exit(1)
+  rescue PhraseAppUpdater::LocaleFile::BadFileTypeError => e
+    STDERR.puts "Bad filetype for localization files: #{e.message}"
+    exit(1)
+  rescue PhraseAppUpdater::PhraseAppAPI::MissingGitParentError
+    STDERR.puts 'Git ancestor commit not recorded on PhraseApp project'
+    exit(1)
+  rescue StandardError => e
+    STDERR.puts "Unknown error occurred: #{e.message}"
+    STDERR.puts e.backtrace
+    exit(1)
+  end
+
+  def validate_readable_file!(name, file)
+    unless File.readable?(file) && File.file?(file)
+      raise RuntimeError.new("#{name} is not a readable file: #{file}")
     end
+  end
 
-    if file_format.empty?
-      raise RuntimeError.new("Must provide file format for Phraseapp project. --file_format or PA_FILE_FORMAT")
+  def validate_writable_file!(name, file)
+    unless File.writable?(file) && File.file?(file)
+      raise RuntimeError.new("#{name} is not a writable file: #{file}")
     end
-
-    return [phraseapp_api_key, phraseapp_project_id, file_format]
   end
 
   def validate_path!(name, path)
@@ -153,14 +283,11 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
-  def write_locale_files(path, files)
-    files.each do |file|
-      full_path = "#{path.chomp('/')}/#{file.name_with_extension}"
-      File.write(full_path, file.content)
+  def sh(x)
+    `#{x}`.tap do
+      raise RuntimeError.new("Shell command failed: '#{x}'") unless $?.success?
     end
-    puts "Wrote #{files.count} files to #{path}: #{files.map(&:name_with_extension)}"
   end
 end
 
 PhraseAppUpdaterCLI.start(ARGV)
-
