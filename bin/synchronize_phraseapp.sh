@@ -91,7 +91,8 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
         merge_commit=$(git commit-tree "${merged_branch_tree}" \
                            -p "${current_branch}" \
                            -p "${phraseapp_commit}" \
-                           -m "Merged locale changes from PhraseApp")
+                           -m "Merged locale changes from PhraseApp" \
+                           -m "X-PhraseApp-Merge: ${phraseapp_commit}")
 
         # Push to BRANCH
         git push "${REMOTE}" "${merge_commit}:refs/heads/${BRANCH}"
