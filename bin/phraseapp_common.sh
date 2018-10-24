@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Set up a working directory
-working_directory=$(mktemp -d -t phraseapp)
+working_directory=$(mktemp -d -t phraseapp.XXXXXX)
 
 function cleanup_working_directory(){
     rm -rf "${working_directory}"
