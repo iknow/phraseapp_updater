@@ -78,9 +78,11 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
 
     if [ "$NO_COMMIT" != 't' ]; then
         # Create a commit to record the pre-merge state of PhraseApp
-        phraseapp_commit=$(git commit-tree "${current_phraseapp_tree}" \
+        phraseapp_commit_tree=$(replace_nested_tree "${common_ancestor}^{tree}" "${PREFIX}" "${current_phraseapp_tree}")
+        phraseapp_commit=$(git commit-tree "${phraseapp_commit_tree}" \
                                -p "${common_ancestor}" \
-                               -m "Remote locale changes made on PhraseApp (drop when rebasing)")
+                               -m "Remote locale changes made on PhraseApp" \
+                               -m "These changes may be safely flattened into their merge commit when rebasing.")
 
         # Commit merge result to PREFIX in BRANCH
         merge_resolution_tree=$(make_tree_from_directory "${merge_resolution_path}")
@@ -89,7 +91,8 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
         merge_commit=$(git commit-tree "${merged_branch_tree}" \
                            -p "${current_branch}" \
                            -p "${phraseapp_commit}" \
-                           -m "Merged locale changes from PhraseApp")
+                           -m "Merged locale changes from PhraseApp" \
+                           -m "X-PhraseApp-Merge: ${phraseapp_commit}")
 
         # Push to BRANCH
         git push "${REMOTE}" "${merge_commit}:refs/heads/${BRANCH}"
