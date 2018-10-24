@@ -48,7 +48,7 @@ class PhraseAppUpdaterCLI < Thor
     ENV['FILE_FORMAT'] = options[:file_format]
     ENV['NO_COMMIT']   = options[:no_commit] ? 't' : 'f'
     ENV['PREFIX']      = options[:prefix]
-    ENV['BRANCH']      = options.fetch(:branch) { sh('git name-rev --name-only HEAD').chomp }
+    ENV['BRANCH']      = options.fetch(:branch) { sh('git rev-parse --abbrev-ref HEAD').chomp }
     ENV['REMOTE']      = options.fetch(:remote) { sh("git config branch.#{ENV['BRANCH']}.remote").chomp }
 
     shell_script_path = File.join(__dir__, 'synchronize_phraseapp.sh')
