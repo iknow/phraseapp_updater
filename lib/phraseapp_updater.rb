@@ -84,8 +84,8 @@ class PhraseAppUpdater
     locale_names = Set.new.merge(ours.keys).merge(theirs.keys)
 
     locale_names.map do |locale_name|
-      our_file      = ours.fetch(locale_name)
-      their_file    = theirs.fetch(locale_name)
+      our_file      = ours[locale_name]
+      their_file    = theirs[locale_name]
       ancestor_file = ancestors[locale_name]
       merge_locale_file(our_file, their_file, ancestor_file)
     end
