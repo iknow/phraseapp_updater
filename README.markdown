@@ -80,7 +80,7 @@ corresponding to your branch. It must be provided with the current git revision
 of the branch and the path to the locale files.
 
 ```
-phraseapp_updater setup --phraseapp_project_name="yourbranch" --parent_commit="yourhash" --phraseapp_api_key=yourkey" path_to_locales
+phraseapp_updater setup --phraseapp_project_name=<yourbranch> --parent_commit=<yourhash> --phraseapp_api_key=<yourkey> --file-format=json <path_to_locales>
 ```
 
 **Synchronize**
@@ -96,7 +96,7 @@ result will be uploaded to PhraseApp and the common ancestor updated to the
 branch head.
 
 ```
-phraseapp_updater synchronize <checkout_path>
+phraseapp_updater synchronize <checkout_path> --prefix=config/locales --phraseapp_project_id=<yourid> --phraseapp_api_key=<yourkey>  --file-format=json
 ```
 
 **Download**
@@ -106,7 +106,7 @@ PhraseApp, saving them to the specified location. The revision of the recorded
 common ancestor is printed to standard out.
 
 ```
-phraseapp_updater download --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" target_path
+phraseapp_updater download --phraseapp_project_id=<yourid> --phraseapp_api_key=<yourkey> --file-format=json <target_path>
 ```
 
 **Upload**
@@ -115,7 +115,7 @@ phraseapp_updater download --phraseapp_project_id="yourid" --phraseapp_api_key="
 PhraseApp and resets the recorded common ancestor to the specified revision.
 
 ```
-phraseapp_updater upload --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" path_to_locales
+phraseapp_updater upload --phraseapp_project_id=<yourid> --phraseapp_api_key=<yourkey> --file-format=json <path_to_locales>
 ```
 
 **Update Parent Commit**
@@ -123,7 +123,7 @@ phraseapp_updater upload --phraseapp_project_id="yourid" --phraseapp_api_key="yo
 PhraseApp without changing the locales.
 
 ```
-phraseapp_updater update_parent_commit --phraseapp_project_id="yourid" --phraseapp_api_key="yourkey" --parent_commit="yourhash"
+phraseapp_updater update_parent_commit --phraseapp_project_id=<yourid> --phraseapp_api_key=<yourkey> --parent_commit=<yournewhash>
 ```
 
 **Merge**
@@ -135,7 +135,7 @@ accepted. The results are normalized and written to the path specified with
 `to`.
 
 ```
-phraseapp_updater merge ancestor_path our_path their_path --to target_path
+phraseapp_updater merge ancestor_path our_path their_path --to target_path --file-format=json
 ```
 
 
@@ -145,17 +145,8 @@ Performs a content-aware diff between locale files in two directories. Returns
 with exit status 1 or 0 to signal differences or no differences respectively
 
 ```
-phraseapp_updater diff path1 path2
+phraseapp_updater diff path1 path2 --file-format=json
 ```
-
-
-## git-based Driver
-
-We use a small bash script for driving this library to push and pull
-from PhraseApp. While there are many ways to merge data in your
-application with PhraseApp, this works for us:
-
-https://gist.github.com/kevingriffin/d59821446ce424a56c7da2686d4ae082
 
 ## Future Improvements
 
