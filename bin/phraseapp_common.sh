@@ -49,7 +49,7 @@ function extract_files() {
 }
 
 function locales_changed() {
-    ! phraseapp_updater diff --quiet "$1" "$2"
+    ! phraseapp_updater diff --quiet "$1" "$2" --file-format="$FILE_FORMAT"
 }
 
 function tree_changed() {
