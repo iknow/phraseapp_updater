@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'phraseapp_updater/differ'
 
@@ -9,163 +11,163 @@ describe PhraseAppUpdater::Differ do
       let(:original) { {} }
 
       it 'resolves non-conflicing additions' do
-        @a = {"a" => 1}
-        @b = {"b" => 2}
-        expect(resolution).to eq({"a" => 1, "b" => 2})
+        @a = { 'a' => 1 }
+        @b = { 'b' => 2 }
+        expect(resolution).to eq({ 'a' => 1, 'b' => 2 })
       end
 
       it 'resolves a change on a shallow key by taking the primary side' do
-        @a = {"a" => 1}
-        @b = {"a" => 2}
-        expect(resolution).to eq({"a" => 1})
+        @a = { 'a' => 1 }
+        @b = { 'a' => 2 }
+        expect(resolution).to eq({ 'a' => 1 })
       end
 
       it 'resolves non-conflicting changes to a nested key' do
-        @a = {"a" => {"c" => 1}}
-        @b = {"a" => {"b" => 2}}
-        expect(resolution).to eq({"a" => {"b" => 2, "c" => 1}})
+        @a = { 'a' => { 'c' => 1 } }
+        @b = { 'a' => { 'b' => 2 } }
+        expect(resolution).to eq({ 'a' => { 'b' => 2, 'c' => 1 } })
       end
     end
 
     context 'shallow base' do
-      let(:original) { {"a" => 1, "b" => 2, "c" => 3} }
+      let(:original) { { 'a' => 1, 'b' => 2, 'c' => 3 } }
 
       it 'resolves non-conflicing additions' do
-        @a = {"a" => 1, "b" => 2, "c" => 3, "d" => 4}
-        @b = {"a" => 1, "b" => 2, "c" => 3, "e" => 5}
-        expect(resolution).to eq({"a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 5})
+        @a = { 'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4 }
+        @b = { 'a' => 1, 'b' => 2, 'c' => 3, 'e' => 5 }
+        expect(resolution).to eq({ 'a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5 })
       end
 
       it 'resolves a change on a shallow key by taking the primary side' do
-        @a = {"a" => 1, "b" => 2, "c" => 4}
-        @b = {"a" => 1, "b" => 2, "c" => 5}
-        expect(resolution).to eq({"a" => 1, "b" => 2, "c" => 4})
+        @a = { 'a' => 1, 'b' => 2, 'c' => 4 }
+        @b = { 'a' => 1, 'b' => 2, 'c' => 5 }
+        expect(resolution).to eq({ 'a' => 1, 'b' => 2, 'c' => 4 })
       end
 
       it 'resolves change in type in secondary' do
-        @a = original.merge("a" => 10)
-        @b = original.merge("a" => { "z" => 1})
+        @a = original.merge('a' => 10)
+        @b = original.merge('a' => { 'z' => 1 })
 
-        expect(resolution).to eq({"a" => 10, "b" => 2, "c" => 3})
+        expect(resolution).to eq({ 'a' => 10, 'b' => 2, 'c' => 3 })
       end
 
       it 'resolves change in type in primary' do
-        @a = original.merge("a" => { "z" => 1})
-        @b = original.merge("a" => 10)
+        @a = original.merge('a' => { 'z' => 1 })
+        @b = original.merge('a' => 10)
 
-        expect(resolution).to eq({"a" => { "z" => 1 }, "b" => 2, "c" => 3})
+        expect(resolution).to eq({ 'a' => { 'z' => 1 }, 'b' => 2, 'c' => 3 })
       end
 
       it 'handles hash addition overriding terminal addition' do
-        @a = original.merge("d" => { "z" => 1 })
-        @b = original.merge("d" => 10)
+        @a = original.merge('d' => { 'z' => 1 })
+        @b = original.merge('d' => 10)
 
-        expect(resolution).to eq({"a" => 1, "b" => 2, "c" => 3, "d" => { "z" => 1 }})
+        expect(resolution).to eq({ 'a' => 1, 'b' => 2, 'c' => 3, 'd' => { 'z' => 1 } })
       end
 
       it 'handles terminal addition overriding hash addition' do
-        @a = original.merge("d" => 10)
-        @b = original.merge("d" => { "z" => 1 })
+        @a = original.merge('d' => 10)
+        @b = original.merge('d' => { 'z' => 1 })
 
-        expect(resolution).to eq({"a" => 1, "b" => 2, "c" => 3, "d" => 10})
+        expect(resolution).to eq({ 'a' => 1, 'b' => 2, 'c' => 3, 'd' => 10 })
       end
 
       context 'shallow deletion on a' do
-        before { @a = {"a" => 1, "b" => 2} }
+        before { @a = { 'a' => 1, 'b' => 2 } }
 
         it 'resolves to the deletion when b makes a shallow change' do
-          @b = {"a" => 1, "b" => 2, "c" => 5}
-          expect(resolution).to eq({"a" => 1, "b" => 2})
+          @b = { 'a' => 1, 'b' => 2, 'c' => 5 }
+          expect(resolution).to eq({ 'a' => 1, 'b' => 2 })
         end
 
         it 'resolves to the deletion when b also deletes it' do
-          @b = {"a" => 1, "b" => 2, "d" => 4}
-          expect(resolution).to eq({"a" => 1, "b" => 2, "d" => 4})
+          @b = { 'a' => 1, 'b' => 2, 'd' => 4 }
+          expect(resolution).to eq({ 'a' => 1, 'b' => 2, 'd' => 4 })
         end
 
         it 'resolves to the deletion when b makes it a nested key' do
-          @b = {"a" => 1, "b" => 2, "c" => {"d" => 3}}
-          expect(resolution).to eq({"a" => 1, "b" => 2})
+          @b = { 'a' => 1, 'b' => 2, 'c' => { 'd' => 3 } }
+          expect(resolution).to eq({ 'a' => 1, 'b' => 2 })
         end
 
         it 'resolves to the deletion when b makes it a multi-nested key' do
-          @b = {"a" => 1, "b" => 2, "c" => {"d" => {"e" => 5}}}
-          expect(resolution).to eq({"a" => 1, "b" => 2})
+          @b = { 'a' => 1, 'b' => 2, 'c' => { 'd' => { 'e' => 5 } } }
+          expect(resolution).to eq({ 'a' => 1, 'b' => 2 })
         end
       end
 
       context 'nested deletion on a' do
-        before { @a = {"a" => 1, "b" => 2} }
+        before { @a = { 'a' => 1, 'b' => 2 } }
       end
     end
 
     context 'nested_base' do
-      let(:original) { {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3 }}} }
+      let(:original) { { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3 } } } }
 
       it 'handles changing hash to terminal overriding editing a hash' do
-        @a = original.merge("b" => 10)
-        @b = { "a" => 1, "b" => { "q" => 5 }}
-        expect(resolution).to eq({ "a" => 1, "b" => 10 })
+        @a = original.merge('b' => 10)
+        @b = { 'a' => 1, 'b' => { 'q' => 5 } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => 10 })
       end
 
-      it "handles mutating a hash overriding changing a terminal" do
-        @a = { "a" => 1, "b" => { "q" => 5 }}
-        @b = original.merge("b" => 10)
-        expect(resolution).to eq({ "a" => 1, "b" => { "q" => 5 } })
+      it 'handles mutating a hash overriding changing a terminal' do
+        @a = { 'a' => 1, 'b' => { 'q' => 5 } }
+        @b = original.merge('b' => 10)
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'q' => 5 } })
       end
 
-      it "handles mutating a child of a hash overriding changing parent to a terminal" do
-        @a = { "a" => 1, "b" => { "c" => 2, "d" => { "q" => 5 }}}
-        @b = original.merge("b" => 10)
+      it 'handles mutating a child of a hash overriding changing parent to a terminal' do
+        @a = { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'q' => 5 } } }
+        @b = original.merge('b' => 10)
         expect(resolution).to eq(@a)
       end
 
-      it "handles deleting a child overriding editing a hash" do
-        @a = {"a" => 1, "b" => {"c" => 2}}
-        @b = {"a" => 1, "b" => {"c" => 2, "d" => {"e" => 4}}}
+      it 'handles deleting a child overriding editing a hash' do
+        @a = { 'a' => 1, 'b' => { 'c' => 2 } }
+        @b = { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 4 } } }
         expect(resolution).to eq(@a)
       end
 
-      it "handles deleting a child overriding editing a hash" do
-        @a = {"a" => 1, "b" => {"c" => 2}}
-        @b = {"a" => 1, "b" => {"c" => 2, "d" => {"e" => 4}}}
+      it 'handles deleting a child overriding editing a hash' do
+        @a = { 'a' => 1, 'b' => { 'c' => 2 } }
+        @b = { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 4 } } }
         expect(resolution).to eq(@a)
       end
 
-      it "handles mututally adding to a nested key" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
-        @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "g" => 5 }}}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4, "g" => 5 }}})
+      it 'handles mututally adding to a nested key' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'g' => 5 } } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4, 'g' => 5 } } })
       end
 
-      it "handles adding a nested key against making the parent a terminal" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
-        @b =  {"a" => 1, "b" => { "c" => 2, "d" => 5}}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4}}})
+      it 'handles adding a nested key against making the parent a terminal' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => 5 } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4 } } })
       end
 
-      it "handles adding a nested key as a terminal against adding it as a hash" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4 }}}
-        @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => {"g" => 5}}}}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 3, "f" => 4}}})
+      it 'handles adding a nested key as a terminal against adding it as a hash' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => { 'g' => 5 } } } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 3, 'f' => 4 } } })
       end
 
-      it "handles concurrent editing of a nested terminal" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
-        @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 7}}}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}})
+      it 'handles concurrent editing of a nested terminal' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 7 } } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6 } } })
       end
 
-      it "handles editing a nested terminal versus deletion" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
-        @b =  {"a" => 1, "b" => { "c" => 2, "d" => { "f" => 7}}}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6, "f" => 7}}})
+      it 'handles editing a nested terminal versus deletion' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'f' => 7 } } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6, 'f' => 7 } } })
       end
 
-      it "handles editing a nested terminal versus deletion of the parent" do
-        @a =  {"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}}
-        @b =  {"a" => 1, "b" => { "c" => 2, }}
-        expect(resolution).to eq({"a" => 1, "b" => { "c" => 2, "d" => { "e" => 6}}})
+      it 'handles editing a nested terminal versus deletion of the parent' do
+        @a =  { 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6 } } }
+        @b =  { 'a' => 1, 'b' => { 'c' => 2 } }
+        expect(resolution).to eq({ 'a' => 1, 'b' => { 'c' => 2, 'd' => { 'e' => 6 } } })
       end
     end
   end
@@ -173,29 +175,28 @@ describe PhraseAppUpdater::Differ do
   describe 'restore_deletions' do
     let(:resolution) { PhraseAppUpdater::Differ.restore_deletions(@a, @b) }
 
-    it "takes the current side when there are no deletions" do
-      @a = {"a" => 5, "b" => 3}
-      @b = {"a" => 3}
+    it 'takes the current side when there are no deletions' do
+      @a = { 'a' => 5, 'b' => 3 }
+      @b = { 'a' => 3 }
       expect(resolution).to eq @a
     end
 
-    it "restores a shallow deletion" do
-      @a = {"a" => 5, "b" => 3}
-      @b = {"a" => 3, "c" => 6}
-      expect(resolution).to eq({"a" => 5, "b" => 3, "c" => 6})
+    it 'restores a shallow deletion' do
+      @a = { 'a' => 5, 'b' => 3 }
+      @b = { 'a' => 3, 'c' => 6 }
+      expect(resolution).to eq({ 'a' => 5, 'b' => 3, 'c' => 6 })
     end
 
-    it "takes the current side with a deep change" do
-      @a = {"a" => {"c" => 4}, "b" => 3}
-      @b = {"a" => 3, "b" => 5}
+    it 'takes the current side with a deep change' do
+      @a = { 'a' => { 'c' => 4 }, 'b' => 3 }
+      @b = { 'a' => 3, 'b' => 5 }
       expect(resolution).to eq @a
     end
 
-    it "restores a nested deletion" do
-      @a = {"a" => {"c" => 4}, "b" => 3}
-      @b = {"a" => {"c" => 5, "d" => 6}, "b" => 5}
-      expect(resolution).to eq({"a" => {"c" => 4, "d" => 6}, "b" => 3})
+    it 'restores a nested deletion' do
+      @a = { 'a' => { 'c' => 4 }, 'b' => 3 }
+      @b = { 'a' => { 'c' => 5, 'd' => 6 }, 'b' => 5 }
+      expect(resolution).to eq({ 'a' => { 'c' => 4, 'd' => 6 }, 'b' => 3 })
     end
   end
 end
-
