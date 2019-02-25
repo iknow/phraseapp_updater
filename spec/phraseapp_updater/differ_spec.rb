@@ -5,7 +5,7 @@ require 'phraseapp_updater/differ'
 
 describe PhraseAppUpdater::Differ do
   describe 'resolve!' do
-    let(:resolution) { PhraseAppUpdater::Differ.resolve!(original: original, primary: @a, secondary: @b) }
+    let(:resolution) { PhraseAppUpdater::Differ.new.resolve!(original: original, primary: @a, secondary: @b) }
 
     context 'empty base' do
       let(:original) { {} }
@@ -173,7 +173,7 @@ describe PhraseAppUpdater::Differ do
   end
 
   describe 'restore_deletions' do
-    let(:resolution) { PhraseAppUpdater::Differ.restore_deletions(@a, @b) }
+    let(:resolution) { PhraseAppUpdater::Differ.new.restore_deletions(@a, @b) }
 
     it 'takes the current side when there are no deletions' do
       @a = { 'a' => 5, 'b' => 3 }
