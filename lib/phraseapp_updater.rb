@@ -10,16 +10,17 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
-  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit)
+  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit, verbose: false)
     api = PhraseAppAPI.new(phraseapp_api_key, nil, LocaleFile.class_for_file_format(file_format))
     project_id = api.create_project(phraseapp_project_name, parent_commit)
-    return self.new(phraseapp_api_key, project_id, file_format), project_id
+    return self.new(phraseapp_api_key, project_id, file_format, verbose: verbose), project_id
   end
 
-  def initialize(phraseapp_api_key, phraseapp_project_id, file_format, default_locale: 'en')
+  def initialize(phraseapp_api_key, phraseapp_project_id, file_format, default_locale: 'en', verbose: false)
     @locale_file_class = LocaleFile.class_for_file_format(file_format)
     @default_locale    = default_locale
     @phraseapp_api     = PhraseAppAPI.new(phraseapp_api_key, phraseapp_project_id, @locale_file_class)
+    @verbose           = verbose
   end
 
   def diff_directories(our_path, their_path)
@@ -84,6 +85,7 @@ class PhraseAppUpdater
     locale_names = Set.new.merge(ours.keys).merge(theirs.keys)
 
     locale_names.map do |locale_name|
+      STDERR.puts "Merging #{locale_name}" if @verbose
       our_file      = ours[locale_name]
       their_file    = theirs[locale_name]
       ancestor_file = ancestors[locale_name]
@@ -118,7 +120,7 @@ class PhraseAppUpdater
     else
       ancestor_file ||= empty_locale_file(our_file.locale_name)
 
-      resolved_content = Differ.resolve!(
+      resolved_content = Differ.new(verbose: @verbose).resolve!(
         original:  ancestor_file.parsed_content,
         primary:   our_file.parsed_content,
         secondary: their_file.parsed_content)

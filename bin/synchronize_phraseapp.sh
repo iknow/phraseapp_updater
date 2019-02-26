@@ -13,7 +13,7 @@ fi
 
 # Configuration is via environment, and expected to be provided from a Ruby
 # driver.
-for variable in PHRASEAPP_API_KEY PHRASEAPP_PROJECT_ID BRANCH REMOTE PREFIX FILE_FORMAT NO_COMMIT; do
+for variable in PHRASEAPP_API_KEY PHRASEAPP_PROJECT_ID BRANCH REMOTE PREFIX FILE_FORMAT NO_COMMIT VERBOSE; do
     if [ -z "${!variable}" ]; then
         echo "Error: must specify $variable" >&2
         exit 1
@@ -30,6 +30,7 @@ current_phraseapp_path=$(make_temporary_directory)
 common_ancestor=$(phraseapp_updater download "${current_phraseapp_path}" \
                       --phraseapp_api_key="${PHRASEAPP_API_KEY}" \
                       --phraseapp_project_id="${PHRASEAPP_PROJECT_ID}" \
+                      --verbose="${VERBOSE}" \
                       --file_format="${FILE_FORMAT}")
 
 # If common_ancestor is not available or reachable from BRANCH, we've been
@@ -74,6 +75,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
     merge_resolution_path=$(make_temporary_directory)
     phraseapp_updater merge "${common_ancestor_path}" "${current_branch_path}" "${current_phraseapp_path}" \
                       --to "${merge_resolution_path}" \
+                      --verbose="${VERBOSE}"          \
                       --file_format="${FILE_FORMAT}"
 
     if [ "$NO_COMMIT" != 't' ]; then
@@ -92,6 +94,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
                            -p "${current_branch}" \
                            -p "${phraseapp_commit}" \
                            -m "Merged locale changes from PhraseApp" \
+                           -m "Since common ancestor ${common_ancestor}" \
                            -m "X-PhraseApp-Merge: ${phraseapp_commit}")
 
         # Push to BRANCH
@@ -108,6 +111,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
                       --parent_commit="${new_parent_commit}" \
                       --phraseapp_api_key="${PHRASEAPP_API_KEY}" \
                       --phraseapp_project_id="${PHRASEAPP_PROJECT_ID}" \
+                      --verbose="${VERBOSE}" \
                       --file_format="${FILE_FORMAT}"
 
 elif [ "${branch_changed}" = 't' ]; then
@@ -118,6 +122,7 @@ elif [ "${branch_changed}" = 't' ]; then
                       --parent_commit="${current_branch}" \
                       --phraseapp_api_key="${PHRASEAPP_API_KEY}" \
                       --phraseapp_project_id="${PHRASEAPP_PROJECT_ID}" \
+                      --verbose="${VERBOSE}" \
                       --file_format="${FILE_FORMAT}"
 
 elif [ "${phraseapp_changed}" = 't' ]; then
@@ -127,7 +132,8 @@ elif [ "${phraseapp_changed}" = 't' ]; then
         updated_branch_tree=$(replace_nested_tree "${current_branch}^{tree}" "${PREFIX}" "${current_phraseapp_tree}")
         update_commit=$(git commit-tree "${updated_branch_tree}" \
                             -p "${current_branch}" \
-                            -m "Incorporate locale changes from PhraseApp")
+                            -m "Incorporate locale changes from PhraseApp" \
+                            -m "Since common ancestor ${common_ancestor}")
 
         git push "${REMOTE}" "${update_commit}:refs/heads/${BRANCH}"
 
@@ -135,6 +141,7 @@ elif [ "${phraseapp_changed}" = 't' ]; then
         phraseapp_updater update_parent_commit \
                           --parent_commit="${update_commit}" \
                           --phraseapp_api_key="${PHRASEAPP_API_KEY}" \
+                          --verbose="${VERBOSE}" \
                           --phraseapp_project_id="${PHRASEAPP_PROJECT_ID}"
     else
         echo "Only PhraseApp changed: not committing to $BRANCH branch" >&2
