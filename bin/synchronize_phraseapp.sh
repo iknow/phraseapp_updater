@@ -25,6 +25,14 @@ git fetch "${REMOTE}"
 
 current_branch=$(git rev-parse "${REMOTE}/${BRANCH}")
 
+# If there's a local checkout of that branch, for safety's sake make sure that
+# it's up to date with the remote one.
+local_branch=$(git rev-parse "${BRANCH}")
+if [ "$local_branch" ] && [ "$current_branch" != "$local_branch" ]; then
+   echo "Error: local branch '${BRANCH}' exists but does not match '${REMOTE}/${BRANCH}'." >&2
+   exit 1
+fi
+
 # First, fetch the current contents of PhraseApp's staged ("verified") state.
 current_phraseapp_path=$(make_temporary_directory)
 common_ancestor=$(phraseapp_updater download "${current_phraseapp_path}" \
