@@ -99,7 +99,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
         merged_branch_tree=$(replace_nested_tree "${current_branch}^{tree}" "${PREFIX}" "${merge_resolution_tree}")
 
 
-        if [ "$skip_ancestor_merge" != 't' ]; then
+        if [ "$skip_ancestor_merge" = 't' ]; then
             merge_args=()
         else
             # Create a commit to record the pre-merge state of PhraseApp
