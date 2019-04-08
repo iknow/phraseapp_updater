@@ -46,12 +46,19 @@ common_ancestor=$(phraseapp_updater download "${current_phraseapp_path}" \
 # afterwards. If it's not available, we lose: the best we can do is manually
 # perform a 2-way diff and force upload to phraseapp. If it's still available
 # but not reachable, we can still try and perform a 3 way merge, but the results
-# will not be as accurate: warn the user.
+# will not be as accurate and we can't record it as a merge: warn the user.
 if ! git cat-file -e "${common_ancestor}^{commit}"; then
     echo "Common ancestor commit could not be found: was '${BRANCH}' rebased without updating PhraseApp?" >&2
     exit 1
 elif ! git merge-base --is-ancestor "${common_ancestor}" "${current_branch}"; then
-    echo "Warning: ancestor commit was not reachable from '${BRANCH}': 3-way merge may be inaccurate" >&2
+    echo "Warning: ancestor commit was not reachable from '${BRANCH}': "\
+         "3-way merge may be inaccurate, and PhraseApp parent commit will not be recorded" >&2
+
+    # If the merge base isn't an ancestor, then creating a merge commit from it
+    # will create a really misleading git history, as it will appear to be
+    # merging extra commits but in fact not take any contents from them. Avoid
+    # doing this.
+    skip_ancestor_merge=t
 fi
 
 current_branch_path=$(extract_commit "${current_branch}")
@@ -87,20 +94,29 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
                       --file_format="${FILE_FORMAT}"
 
     if [ "$NO_COMMIT" != 't' ]; then
-        # Create a commit to record the pre-merge state of PhraseApp
-        phraseapp_commit_tree=$(replace_nested_tree "${common_ancestor}^{tree}" "${PREFIX}" "${current_phraseapp_tree}")
-        phraseapp_commit=$(git commit-tree "${phraseapp_commit_tree}" \
-                               -p "${common_ancestor}" \
-                               -m "Remote locale changes made on PhraseApp" \
-                               -m "These changes may be safely flattened into their merge commit when rebasing.")
-
         # Commit merge result to PREFIX in BRANCH
         merge_resolution_tree=$(make_tree_from_directory "${merge_resolution_path}")
         merged_branch_tree=$(replace_nested_tree "${current_branch}^{tree}" "${PREFIX}" "${merge_resolution_tree}")
 
+
+        if [ "$skip_ancestor_merge" = 't' ]; then
+            merge_args=()
+        else
+            # Create a commit to record the pre-merge state of PhraseApp
+            phraseapp_commit_tree=$(replace_nested_tree "${common_ancestor}^{tree}" "${PREFIX}" "${current_phraseapp_tree}")
+            phraseapp_commit=$(git commit-tree "${phraseapp_commit_tree}" \
+                                   -p "${common_ancestor}" \
+                                   -m "Remote locale changes made on PhraseApp" \
+                                   -m "These changes may be safely flattened into their merge commit when rebasing.")
+
+            merge_args=("-p" "${phraseapp_commit}")
+        fi
+
+
+
         merge_commit=$(git commit-tree "${merged_branch_tree}" \
                            -p "${current_branch}" \
-                           -p "${phraseapp_commit}" \
+                           "${merge_args[@]}" \
                            -m "Merged locale changes from PhraseApp" \
                            -m "Since common ancestor ${common_ancestor}" \
                            -m "X-PhraseApp-Merge: ${phraseapp_commit}")
