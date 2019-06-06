@@ -74,7 +74,7 @@ class PhraseAppUpdater
       end
     end
 
-    HashDiff.diff(our_content, their_content)
+    Hashdiff.diff(our_content, their_content)
   end
 
   def merge_locale_files(our_locales, their_locales, ancestor_locales)

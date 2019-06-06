@@ -63,7 +63,7 @@ class PhraseAppUpdater
     end
 
     def apply_diffs(hash, diffs)
-      deep_compact!(HashDiff.patch!(hash, diffs))
+      deep_compact!(Hashdiff.patch!(hash, diffs))
     end
 
     def resolve!(original:, primary:, secondary:)
@@ -73,8 +73,8 @@ class PhraseAppUpdater
       f_primary   = flatten(primary)
       f_secondary = flatten(secondary)
 
-      primary_diffs   = HashDiff.diff(f_original, f_primary)
-      secondary_diffs = HashDiff.diff(f_original, f_secondary)
+      primary_diffs   = Hashdiff.diff(f_original, f_primary)
+      secondary_diffs = Hashdiff.diff(f_original, f_secondary)
 
       # However, flattening discards one critical piece of information: when we
       # have deleted or clobbered an entire prefix (subtree) from the original,
@@ -88,7 +88,7 @@ class PhraseAppUpdater
       #
       # Additionally calculate subtree prefixes that were deleted in `secondary`:
       secondary_deleted_prefixes =
-        HashDiff.diff(original, secondary, delimiter: SEPARATOR).lazy
+        Hashdiff.diff(original, secondary, delimiter: SEPARATOR).lazy
           .select { |op, path, from, to| (op == "-" || op == "~") && from.is_a?(Hash) && !to.is_a?(Hash) }
           .map    { |op, path, from, to| path }
           .to_a
@@ -109,7 +109,7 @@ class PhraseAppUpdater
         resolved_diffs.each { |d| STDERR.puts(d.inspect) }
       end
 
-      HashDiff.patch!(f_original, resolved_diffs)
+      Hashdiff.patch!(f_original, resolved_diffs)
 
       expand(f_original)
     end
