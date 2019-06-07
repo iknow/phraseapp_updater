@@ -41,15 +41,15 @@ jobs:
 
       - restore_cache:
           keys:
-            - phraseapp_updater-<< parameters.ruby-version >>-{{ checksum "/tmp/gem-lock" }}
-            - phraseapp_updater-
+            - phraseapp_updater-v2-<< parameters.ruby-version >>-{{ checksum "/tmp/gem-lock" }}
+            - phraseapp_updater-v2
 
       - run:
           name: Bundle Install
           command: bundle check || bundle install
 
       - save_cache:
-          key: phraseapp_updater-<< parameters.ruby-version >>-{{ checksum "/tmp/gem-lock" }}
+          key: phraseapp_updater-v2-<< parameters.ruby-version >>-{{ checksum "/tmp/gem-lock" }}
           paths:
             - vendor/bundle
 

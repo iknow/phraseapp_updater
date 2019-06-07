@@ -27,7 +27,7 @@ current_branch=$(git rev-parse "${REMOTE}/${BRANCH}")
 
 # If there's a local checkout of that branch, for safety's sake make sure that
 # it's up to date with the remote one.
-local_branch=$(git rev-parse "${BRANCH}")
+local_branch=$(git rev-parse "${BRANCH}" || true)
 if [ "$local_branch" ] && [ "$current_branch" != "$local_branch" ]; then
    echo "Error: local branch '${BRANCH}' exists but does not match '${REMOTE}/${BRANCH}'." >&2
    exit 1
