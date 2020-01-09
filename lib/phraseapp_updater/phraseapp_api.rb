@@ -10,6 +10,7 @@ class PhraseAppUpdater
   using IndexBy
   class PhraseAppAPI
     GIT_TAG_PREFIX = 'gitancestor_'
+    PAGE_SIZE = 100
 
     def initialize(api_key, project_id, locale_file_class)
       @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
@@ -30,11 +31,19 @@ class PhraseAppUpdater
       project.id
     end
 
+    def lookup_project_id(name)
+      result, = paginate_request(:projects_list, limit: 1) { |p| p.name == name }
+      raise ProjectNotFoundError.new(name) if result.nil?
+
+      result.id
+    end
+
     # We mark projects with their parent git commit using a tag with a
     # well-known prefix. We only allow one tag with this prefix at once.
     def read_parent_commit
-      tags = phraseapp_request { @client.tags_list(@project_id, 1, 100) }
-      git_tag = tags.detect { |t| t.name.start_with?(GIT_TAG_PREFIX) }
+      git_tag, = paginate_request(:tags_list, @project_id, limit: 1) do |t|
+        t.name.start_with?(GIT_TAG_PREFIX)
+      end
       raise MissingGitParentError.new if git_tag.nil?
 
       git_tag.name.delete_prefix(GIT_TAG_PREFIX)
@@ -146,6 +155,32 @@ class PhraseAppUpdater
       phraseapp_request { @client.tag_create(@project_id, params) }
     end
 
+    def paginate_request(method, *params, limit: nil, &filter)
+      page = 1
+      results = []
+
+      loop do
+        response = phraseapp_request do
+          @client.public_send(method, *params, page, PAGE_SIZE)
+        end
+
+        break if response.empty?
+
+        matches = response.filter(&filter)
+        matches = matches[0, limit - results.size] if limit
+
+        unless matches.empty?
+          results.concat(matches)
+
+          break if results.size == limit
+        end
+
+        page += 1
+      end
+
+      results
+    end
+
     def phraseapp_request(&block)
       res, err = block.call
 
@@ -216,6 +251,15 @@ class PhraseAppUpdater
     class MissingGitParentError < RuntimeError
       def initialize
         super('Could not locate tag representing git ancestor commit')
+      end
+    end
+
+    class ProjectNotFoundError < RuntimeError
+      attr_reader :name
+
+      def initialize(name)
+        @name = name
+        super("Project '#{name}' not found")
       end
     end
 

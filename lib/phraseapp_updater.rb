@@ -16,6 +16,11 @@ class PhraseAppUpdater
     return self.new(phraseapp_api_key, project_id, file_format, verbose: verbose), project_id
   end
 
+  def self.lookup_project(phraseapp_api_key, phraseapp_project_name)
+    api = PhraseAppAPI.new(phraseapp_api_key, nil, nil)
+    api.lookup_project_id(phraseapp_project_name)
+  end
+
   def initialize(phraseapp_api_key, phraseapp_project_id, file_format, default_locale: 'en', verbose: false)
     @locale_file_class = LocaleFile.class_for_file_format(file_format)
     @default_locale    = default_locale

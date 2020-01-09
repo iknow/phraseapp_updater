@@ -32,6 +32,20 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  desc 'lookup', 'Lookup a phraseapp project by name'
+  method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
+  method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
+
+  def lookup
+    handle_errors do
+      project_id = PhraseAppUpdater.lookup_project(
+        options[:phraseapp_api_key],
+        options[:phraseapp_project_name])
+
+      puts project_id
+    end
+  end
+
   desc 'synchronize <git_checkout_path>',
        'Synchronize locales in PhraseApp with '
   method_option :phraseapp_api_key,    type: :string, required: true,            desc: 'PhraseApp API key.'
@@ -236,6 +250,9 @@ class PhraseAppUpdaterCLI < Thor
     yield
   rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError
     STDERR.puts 'Bad PhraseApp API key.'
+    exit(1)
+  rescue PhraseAppUpdater::PhraseAppAPI::ProjectNotFoundError => e
+    STDERR.puts "PhraseApp project not found: '#{e.name}'"
     exit(1)
   rescue PhraseAppUpdater::PhraseAppAPI::BadProjectIDError => e
     STDERR.puts "Bad PhraseApp project ID: #{e.project_id}"
