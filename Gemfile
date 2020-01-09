@@ -4,3 +4,5 @@ source 'https://rubygems.org'
 gemspec
 gem 'byebug'
 gem 'rspec_junit_formatter'
+
+gem 'irb', require: false
