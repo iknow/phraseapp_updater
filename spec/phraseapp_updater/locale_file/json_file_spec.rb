@@ -38,9 +38,9 @@ describe PhraseAppUpdater::LocaleFile::JSONFile do
     file = PhraseAppUpdater::LocaleFile::JSONFile.from_hash('en', { a: { c: 10, b: 5 } })
     expect(file.content).to eq(<<-JSON)
 {
-  "a":{
-    "b":5,
-    "c":10
+  "a": {
+    "b": 5,
+    "c": 10
   }
 }
     JSON

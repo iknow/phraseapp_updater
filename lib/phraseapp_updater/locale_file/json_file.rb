@@ -22,7 +22,10 @@ class PhraseAppUpdater
 
         def dump(hash)
           # Add indentation for better diffs
-          Oj.dump(hash, indent: 2, mode: :strict)
+          json = Oj.dump(hash, indent: '  ', space:  ' ', object_nl: "\n", array_nl: "\n", mode: :strict)
+          # Oj omits end of file newline unless using the integer form of :indent
+          json << "\n"
+          json
         end
 
         def extension
