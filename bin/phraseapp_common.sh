@@ -4,13 +4,19 @@
 working_directory=$(mktemp -d -t phraseapp.XXXXXX)
 
 function cleanup_working_directory(){
-    rm -rf "${working_directory}"
+  local now archive
+  now="$(date "+%Y%m%d%H%M%S")"
+  archive="/tmp/phraseapp-updater-$now.tar.gz"
+  tar czf "$archive" "${working_directory}"
+  rm -rf "${working_directory}"
+  echo "Working files saved to $archive"
 }
 
 trap "cleanup_working_directory" EXIT SIGINT
 
 function make_temporary_directory() {
-    mktemp -d "${working_directory}/XXXXXXXX"
+    name="${1:-tmp}"
+    mktemp -d "${working_directory}/$name.XXXXXXXX"
 }
 
 function make_tree_from_directory() {
@@ -41,7 +47,7 @@ function extract_commit() {
 
 function extract_files() {
     local path
-    path=$(make_temporary_directory)
+    path=$(make_temporary_directory "git.${1%%:*}")
 
     git archive --format=tar "$1" | tar -x -C "${path}"
 

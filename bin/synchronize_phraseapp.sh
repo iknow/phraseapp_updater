@@ -34,7 +34,7 @@ if [ "$local_branch" ] && [ "$current_branch" != "$local_branch" ]; then
 fi
 
 # First, fetch the current contents of PhraseApp's staged ("verified") state.
-current_phraseapp_path=$(make_temporary_directory)
+current_phraseapp_path=$(make_temporary_directory phraseapp_download)
 common_ancestor=$(phraseapp_updater download "${current_phraseapp_path}" \
                       --phraseapp_api_key="${PHRASEAPP_API_KEY}" \
                       --phraseapp_project_id="${PHRASEAPP_PROJECT_ID}" \
@@ -87,7 +87,7 @@ if [ "${phraseapp_changed}" = 't' ] && [ "${branch_changed}" = 't' ]; then
     echo "$BRANCH branch and PhraseApp both changed: 3-way merging" >&2
 
     # 3-way merge
-    merge_resolution_path=$(make_temporary_directory)
+    merge_resolution_path=$(make_temporary_directory merge_resolution)
     phraseapp_updater merge "${common_ancestor_path}" "${current_branch_path}" "${current_phraseapp_path}" \
                       --to "${merge_resolution_path}" \
                       --verbose="${VERBOSE}"          \
