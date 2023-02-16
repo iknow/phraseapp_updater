@@ -32,9 +32,10 @@ jobs:
       with:
         name: rspec.xml
         path: test_results/rspec.xml
-    - name: Publish Test Results
-      uses: EnricoMi/publish-unit-test-result-action@v2
+    - name: Test Report
+      uses: dorny/test-reporter@v1
       if: always()
       with:
-        files: |
-          test_results/rspec.xml
+        name: Rspec Tests - ${{ matrix.ruby-version }}
+        path: test_results/rspec.xml
+        reporter: java-junit
