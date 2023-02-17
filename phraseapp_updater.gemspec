@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "thor", "~> 0.19"
   spec.add_dependency "phrase", "~> 2.8.3"
-  spec.add_dependency "hashdiff", "~> 0.3"
+  spec.add_dependency "hashdiff", "~> 1.0.1"
   spec.add_dependency "multi_json", "~> 1.12"
   spec.add_dependency "oj", "~> 2.18"
   spec.add_dependency "deep_merge", "~> 1.1"
