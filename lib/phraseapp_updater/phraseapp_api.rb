@@ -12,7 +12,10 @@ class PhraseAppUpdater
     GIT_TAG_PREFIX = 'gitancestor_'
     PAGE_SIZE = 100
 
+    attr_reader :api_key, :project_id
+
     def initialize(api_key, project_id, locale_file_class)
+      @api_key           = api_key
       @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
       @project_id        = project_id
       @locale_file_class = locale_file_class

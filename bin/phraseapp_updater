@@ -9,11 +9,26 @@ class PhraseAppUpdaterCLI < Thor
   class_option :file_format,    type: :string, default: 'json', desc: 'Filetype of localization files.'
   class_option :verbose,        type: :boolean, default: false, desc: 'Verbose output'
 
+  # Common method options
+
+  def self.phraseapp_api_key_method_option
+    method_option :phraseapp_api_key, type: :string, required: true, desc: 'PhraseApp API key.'
+  end
+
+  def self.phraseapp_method_options
+    phraseapp_api_key_method_option
+    method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
+  end
+
+  def self.parent_commit_method_option
+    method_option :parent_commit, type: :string, required: true, desc: 'git commit hash of initial locales'
+  end
+
   desc 'setup <locale_path>',
        'Create a new PhraseApp project, initializing it with locale files at <locale_path>. the new project ID is printed to STDOUT'
-  method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
-  method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
-  method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
+
+  phraseapp_method_options
+  parent_commit_method_option
 
   def setup(locales_path)
     validate_readable_path!('locales', locales_path)
@@ -47,46 +62,36 @@ class PhraseAppUpdaterCLI < Thor
   end
 
   desc 'synchronize <git_checkout_path>',
-       'Synchronize locales in PhraseApp with '
-  method_option :phraseapp_api_key,    type: :string, required: true,            desc: 'PhraseApp API key.'
-  method_option :phraseapp_project_id, type: :string, required: true,            desc: 'PhraseApp project ID.'
-  method_option :branch,               type: :string, required: false,           desc: 'Name of (remote) git branch to synchronize'
-  method_option :remote,               type: :string, required: false,           desc: 'Name of git remote to synchronize with'
-  method_option :prefix,               type: :string, default: 'config/locales', desc: 'Path prefix in git branch for locale files'
-  method_option :no_commit,            type: :boolean, default: false,           desc: 'Do not commit merge results to the branch'
+       'Synchronize locales in PhraseApp with those in local checkout'
+  phraseapp_method_options
+  method_option :branch,    type: :string, required: false,           desc: 'Name of (remote) git branch to synchronize'
+  method_option :remote,    type: :string, required: false,           desc: 'Name of git remote to synchronize with'
+  method_option :prefix,    type: :string, default: 'config/locales', desc: 'Path prefix in git branch for locale files'
+  method_option :no_commit, type: :boolean, default: false,           desc: 'Do not commit merge results to the branch'
 
   def synchronize(checkout_path)
-    validate_readable_path!('checkout path', checkout_path)
-    Dir.chdir(checkout_path)
+    validate_writable_path!('checkout path', checkout_path)
 
-    ENV['PHRASEAPP_API_KEY']    = options[:phraseapp_api_key]
-    ENV['PHRASEAPP_PROJECT_ID'] = options[:phraseapp_project_id]
-    ENV['FILE_FORMAT'] = options[:file_format]
-    ENV['NO_COMMIT']   = options[:no_commit] ? 't' : 'f'
-    ENV['PREFIX']      = options[:prefix]
-    ENV['BRANCH']      = options.fetch(:branch) { sh('git rev-parse --abbrev-ref HEAD').chomp }
-    ENV['REMOTE']      = options.fetch(:remote) { sh("git config branch.#{ENV['BRANCH']}.remote").chomp }
-    ENV['VERBOSE']     = options[:verbose] ? 't' : 'f'
-
-    shell_script_path = File.join(__dir__, 'synchronize_phraseapp.sh')
-    exec(shell_script_path)
+    handle_errors do
+      updater = build_updater
+      updater.synchronize(checkout_path,
+                          options[:prefix],
+                          no_commit: options[:no_commit],
+                          branch: options[:branch],
+                          remote: options[:remote])
+    end
   end
 
   desc 'download <target_path>',
        'Download and renormalize locale files from PhraseApp to <target_path>'
-  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
-  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
+
+  phraseapp_method_options
 
   def download(target_path)
     validate_writable_path!('target path', target_path)
 
     handle_errors do
-      updater = PhraseAppUpdater.new(
-        options[:phraseapp_api_key],
-        options[:phraseapp_project_id],
-        options[:file_format],
-        verbose: options[:verbose])
-
+      updater = build_updater
       updater.download_to_directory(target_path)
       parent_commit = updater.read_parent_commit
 
@@ -101,37 +106,29 @@ class PhraseAppUpdaterCLI < Thor
 
   desc 'upload <locale_path>',
        'Renormalize and upload locale files at <locale_path> to PhraseApp, replacing current contents.'
-  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
-  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
-  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+
+  phraseapp_method_options
+  parent_commit_method_option
 
   def upload(source_path)
     validate_readable_path!('source path', source_path)
 
     handle_errors do
-      updater = PhraseAppUpdater.new(
-        options[:phraseapp_api_key],
-        options[:phraseapp_project_id],
-        options[:file_format],
-        verbose: options[:verbose])
-
+      updater = build_updater
       updater.upload_directory(source_path)
       updater.update_parent_commit(options[:parent_commit])
     end
   end
 
-  desc 'update_parent_commit', 'Record a new merge-base on PhraseApp without changing contents.'
-  method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
-  method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
-  method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+  desc 'update_parent_commit',
+       'Record a new merge-base on PhraseApp without changing contents.'
+
+  phraseapp_method_options
+  parent_commit_method_option
+
   def update_parent_commit
     handle_errors do
-      updater = PhraseAppUpdater.new(
-        options[:phraseapp_api_key],
-        options[:phraseapp_project_id],
-        options[:file_format],
-        verbose: options[:verbose])
-
+      updater = build_updater
       updater.update_parent_commit(options[:parent_commit])
     end
   end
@@ -246,6 +243,14 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  def build_updater
+    PhraseAppUpdater.new(
+      options[:phraseapp_api_key],
+      options[:phraseapp_project_id],
+      options[:file_format],
+      verbose: options[:verbose])
+  end
+
   def handle_errors
     yield
   rescue PhraseAppUpdater::PhraseAppAPI::BadAPIKeyError
@@ -265,6 +270,9 @@ class PhraseAppUpdaterCLI < Thor
     exit(1)
   rescue PhraseAppUpdater::PhraseAppAPI::MissingGitParentError
     STDERR.puts 'Git ancestor commit not recorded on PhraseApp project'
+    exit(1)
+  rescue PhraseAppUpdater::SynchronizeError => e
+    STDERR.puts "Synchronization task failed: #{e.status}"
     exit(1)
   rescue StandardError => e
     STDERR.puts "Unknown error occurred: #{e.message}"

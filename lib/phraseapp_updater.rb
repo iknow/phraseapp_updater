@@ -10,6 +10,15 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
+  class SynchronizeError < RuntimeError
+    attr_reader :status
+
+    def initialize(status)
+      super(status.to.s)
+      @status = status
+    end
+  end
+
   def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit, verbose: false)
     api = PhraseAppAPI.new(phraseapp_api_key, nil, LocaleFile.class_for_file_format(file_format))
     project_id = api.create_project(phraseapp_project_name, parent_commit)
@@ -68,6 +77,29 @@ class PhraseAppUpdater
 
   def read_parent_commit
     @phraseapp_api.read_parent_commit
+  end
+
+  def synchronize(checkout_path, locale_prefix, no_commit: false, branch: nil, remote: nil)
+    Dir.chdir(checkout_path)
+    branch ||= sh('git rev-parse --abbrev-ref HEAD').chomp
+    remote ||= sh("git config branch.#{branch}.remote").chomp
+
+    ENV['PHRASEAPP_API_KEY']    = @phraseapp_api.api_key
+    ENV['PHRASEAPP_PROJECT_ID'] = @phraseapp_api.project_id
+    ENV['FILE_FORMAT']          = @locale_file_class.extension
+    ENV['PREFIX']               = locale_prefix
+    ENV['NO_COMMIT']            = no_commit ? 't' : 'f'
+    ENV['VERBOSE']              = @verbose   ? 't' : 'f'
+    ENV['BRANCH']               = branch
+    ENV['REMOTE']               = remote
+
+    shell_script_path = File.join(__dir__, '..', 'bin', 'synchronize_phraseapp.sh')
+
+    unless system(shell_script_path)
+      raise SynchronizeError.new($?)
+    end
+  end
+
   end
 
   private
