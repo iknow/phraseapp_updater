@@ -102,13 +102,14 @@ class PhraseAppUpdater
     # We assert that the default locale contains all legitimate strings, and so
     # we clean up orphaned content on PhraseApp post-upload by removing keys not
     # in the default locale.
-    default_locale_index = locale_files.find_index { |f| f.locale_name == @default_locale }
-    raise RuntimeError.new("Missing default locale") unless default_locale_index
+    unless locale_files.find { |f| f.locale_name == @default_locale }
+      raise RuntimeError.new("Missing default locale")
+    end
 
     upload_ids = @phraseapp_api.upload_files(locale_files, default_locale: @default_locale)
-    default_upload_id = upload_ids[default_locale_index]
+    default_upload_id = upload_ids.fetch(@default_locale)
 
-    STDERR.puts "Removing keys not in default locale upload #{default_upload_id}"
+    STDERR.puts "Removing keys not in default locale '#{@default_locale}' upload '#{default_upload_id}'"
     @phraseapp_api.remove_keys_not_in_upload(default_upload_id)
   end
 
