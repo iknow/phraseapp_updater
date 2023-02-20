@@ -7,6 +7,7 @@
 # This workaround is from https://github.com/manveru/bundix/issues/10#issuecomment-405879379
 
 require 'shellwords'
+require 'uri'
 
 def sh(*args)
   warn args.shelljoin

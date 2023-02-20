@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # Set up a working directory
-working_directory=$(mktemp -d -t phraseapp.XXXXXX)
+working_directory=$(mktemp -d phraseapp.XXXXXX)
 
 function cleanup_working_directory(){
   local now archive
   now="$(date "+%Y%m%d%H%M%S")"
   archive="/tmp/phraseapp-updater-$now.tar.gz"
-  tar czf "$archive" "${working_directory}"
+  tar -C "$(dirname "$working_directory")" -czf "$archive" "$(basename "${working_directory}")"
   rm -rf "${working_directory}"
   echo "Working files saved to $archive"
 }
@@ -41,15 +41,15 @@ function make_tree_from_directory() {
 }
 
 
-function extract_commit() {
-    extract_files "$1:${PREFIX}"
+function extract_prefix_from_commit() {
+    extract_files "$1" "$2:${PREFIX}"
 }
 
 function extract_files() {
     local path
-    path=$(make_temporary_directory "git.${1%%:*}")
+    path=$(make_temporary_directory "git.${1}.${2%%:*}")
 
-    git archive --format=tar "$1" | tar -x -C "${path}"
+    git archive --format=tar "$2" | tar -x -C "${path}"
 
     echo "${path}"
 }

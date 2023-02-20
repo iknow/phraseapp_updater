@@ -61,8 +61,8 @@ elif ! git merge-base --is-ancestor "${common_ancestor}" "${current_branch}"; th
     skip_ancestor_merge=t
 fi
 
-current_branch_path=$(extract_commit "${current_branch}")
-common_ancestor_path=$(extract_commit "${common_ancestor}")
+current_branch_path=$(extract_prefix_from_commit current_branch "${current_branch}")
+common_ancestor_path=$(extract_prefix_from_commit common_ancestor "${common_ancestor}")
 
 current_phraseapp_tree=$(make_tree_from_directory "${current_phraseapp_path}")
 

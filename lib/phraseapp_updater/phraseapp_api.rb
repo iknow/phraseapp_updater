@@ -2,7 +2,8 @@
 
 require 'phraseapp_updater/locale_file'
 require 'phraseapp_updater/index_by'
-require 'phraseapp-ruby'
+require 'uri'
+require 'phrase'
 require 'parallel'
 require 'tempfile'
 
@@ -13,16 +14,24 @@ class PhraseAppUpdater
     PAGE_SIZE = 100
 
     def initialize(api_key, project_id, locale_file_class)
-      @client            = PhraseApp::Client.new(PhraseApp::Auth::Credentials.new(token: api_key))
+      config = Phrase::Configuration.new do |c|
+        c.api_key['Authorization'] = api_key
+        c.api_key_prefix['Authorization'] = 'token'
+        c.debugging = false
+      end
+
+      @client            = Phrase::ApiClient.new(config)
       @project_id        = project_id
       @locale_file_class = locale_file_class
     end
 
     def create_project(name, parent_commit)
-      params = PhraseApp::RequestParams::ProjectParams.new(
+      params = Phrase::ProjectCreateParameters.new(
         name: name,
         main_format: @locale_file_class.phraseapp_type)
-      project = phraseapp_request { @client.project_create(params) }
+
+      project = phraseapp_request(Phrase::ProjectsApi, :project_create, params)
+
       STDERR.puts "Created project #{name} for #{parent_commit}"
 
       @project_id = project.id
@@ -32,7 +41,8 @@ class PhraseAppUpdater
     end
 
     def lookup_project_id(name)
-      result, = paginate_request(:projects_list, limit: 1) { |p| p.name == name }
+      result, = paginated_request(Phrase::ProjectsApi, :projects_list, { per_page: PAGE_SIZE }, limit: 1) { |p| p.name == name }
+
       raise ProjectNotFoundError.new(name) if result.nil?
 
       result.id
@@ -41,9 +51,10 @@ class PhraseAppUpdater
     # We mark projects with their parent git commit using a tag with a
     # well-known prefix. We only allow one tag with this prefix at once.
     def read_parent_commit
-      git_tag, = paginate_request(:tags_list, @project_id, limit: 1) do |t|
+      git_tag, = paginated_request(Phrase::TagsApi, :tags_list, @project_id, limit: 1) do |t|
         t.name.start_with?(GIT_TAG_PREFIX)
       end
+
       raise MissingGitParentError.new if git_tag.nil?
 
       git_tag.name.delete_prefix(GIT_TAG_PREFIX)
@@ -51,35 +62,28 @@ class PhraseAppUpdater
 
     def update_parent_commit(commit_hash)
       previous_parent = read_parent_commit
-      phraseapp_request do
-        @client.tag_delete(@project_id, GIT_TAG_PREFIX + previous_parent)
-      end
+      phraseapp_request(Phrase::TagsApi, :tag_delete, @project_id, GIT_TAG_PREFIX + previous_parent)
       store_parent_commit(commit_hash)
     end
 
     def fetch_locales
-      # This is a paginated API, however the maximum page size of 100 is well
-      # above our expected locale size, so we take the first page only for now
-      phraseapp_request { @client.locales_list(@project_id, 1, 100) }.map do |pa_locale|
-        Locale.new(pa_locale)
-      end
+      locales = paginated_request(Phrase::LocalesApi, :locales_list, @project_id)
+      locales.map { |pa_locale| Locale.new(pa_locale) }
     end
 
     def create_locale(name, default: false)
-      phraseapp_request do
-        params = PhraseApp::RequestParams::LocaleParams.new(
-          name: name,
-          code: name,
-          default: default,
-        )
-        @client.locale_create(@project_id, params)
-      end
+      params = Phrase::LocaleCreateParameters.new(
+        name: name,
+        code: name,
+        default: default,
+      )
+      phraseapp_request(Phrase::LocalesApi, :locale_create, @project_id, params)
     end
 
     def download_files(locales, skip_unverified:)
       results = threaded_request(locales) do |locale|
         STDERR.puts "Downloading file for #{locale}"
-        download_file(locale, skip_unverified)
+        download_locale(locale, skip_unverified)
       end
 
       locales.zip(results).map do |locale, file_contents|
@@ -87,18 +91,65 @@ class PhraseAppUpdater
       end
     end
 
+    # Empirically, PhraseApp fails to parse the uploaded files when uploaded in
+    # parallel. Give it a better chance by uploading them one at a time.
     def upload_files(locale_files, default_locale:)
-      known_locales = fetch_locales.index_by(&:name)
+      is_default = ->(l) { l.locale_name == default_locale }
 
+      # Ensure the locales all exist
+      STDERR.puts('Creating locales')
+      known_locales = fetch_locales.index_by(&:name)
       threaded_request(locale_files) do |locale_file|
         unless known_locales.has_key?(locale_file.locale_name)
-          create_locale(locale_file.locale_name,
-                        default: (locale_file.locale_name == default_locale))
+          create_locale(locale_file.locale_name, default: is_default.(locale_file))
+        end
+      end
+
+      # Upload the files in a stable order, ensuring the default locale is first.
+      locale_files.sort! do |a, b|
+        next -1 if is_default.(a)
+        next 1  if is_default.(b)
+
+        a.locale_name <=> b.locale_name
+      end
+
+      uploads = {}
+
+      uploads = locale_files.to_h do |locale_file|
+        STDERR.puts("Uploading #{locale_file}")
+        upload_id = upload_file(locale_file)
+        [upload_id, locale_file]
+      end
+
+      # Validate the uploads, retrying failures as necessary
+      successful_upload_ids = {}
+
+      STDERR.puts('Verifying uploads...')
+      until uploads.empty?
+        threaded_request(uploads.to_a) do |upload_id, locale_file|
+          upload = phraseapp_request(Phrase::UploadsApi, :upload_show, @project_id, upload_id)
+
+          case upload.state
+          when "enqueued", "processing"
+            STDERR.puts("#{locale_file}: still processing")
+          when "success"
+            STDERR.puts("#{locale_file}: success")
+            successful_upload_ids[locale_file.locale_name] = upload_id
+            uploads.delete(upload_id)
+          when "error"
+            STDERR.puts("#{locale_file}: upload failure, retrying")
+            new_upload_id = upload_file(locale_file)
+            uploads.delete(upload_id)
+            uploads[new_upload_id] = locale_file
+          else
+            raise RuntimeError.new("Unknown upload state: #{upload.state}")
+          end
         end
 
-        STDERR.puts "Uploading #{locale_file}"
-        upload_file(locale_file)
+        sleep(2) unless uploads.empty?
       end
+
+      successful_upload_ids
     end
 
     def remove_keys_not_in_uploads(upload_ids)
@@ -108,97 +159,55 @@ class PhraseAppUpdater
       end
     end
 
-    def download_file(locale, skip_unverified)
-      download_params = PhraseApp::RequestParams::LocaleDownloadParams.new
+    def download_locale(locale, skip_unverified)
+      opts = {
+        file_format: @locale_file_class.phraseapp_type,
+        skip_unverified_translations: skip_unverified,
+      }
 
-      download_params.file_format                  = @locale_file_class.phraseapp_type
-      download_params.skip_unverified_translations = skip_unverified
-
-      phraseapp_request { @client.locale_download(@project_id, locale.id, download_params) }
+      # Avoid allocating a tempfile (and emitting unnecessary warnings) by using `return_type` of `String`
+      phraseapp_request(Phrase::LocalesApi, :locale_download, @project_id, locale.id, return_type: 'String', **opts)
     end
 
     def upload_file(locale_file)
-      upload_params = create_upload_params(locale_file.locale_name)
-
       # The PhraseApp gem only accepts a filename to upload,
       # so we need to write the file out and pass it the path
       Tempfile.create([locale_file.locale_name, ".json"]) do |f|
         f.write(locale_file.content)
         f.close
 
-        upload_params.file = f.path
-        phraseapp_request { @client.upload_create(@project_id, upload_params) }.id
+        opts = {
+          file:                 f,
+          file_encoding:        'UTF-8',
+          file_format:          @locale_file_class.phraseapp_type,
+          locale_id:            locale_file.locale_name,
+          skip_unverification:  false,
+          update_translations:  true,
+          tags:                 [generate_upload_tag],
+        }
+
+        result = phraseapp_request(Phrase::UploadsApi, :upload_create, @project_id, **opts)
+
+        result.id
       end
     end
 
     def remove_keys_not_in_upload(upload_id)
-      delete_params   = PhraseApp::RequestParams::KeysDeleteParams.new
-      delete_params.q = "unmentioned_in_upload:#{upload_id}"
-
-      begin
-        phraseapp_request { @client.keys_delete(@project_id, delete_params) }
-      rescue RuntimeError => _e
-        # PhraseApp will accept but mark invalid uploads, however the gem
-        # returns the same response in both cases. If we call this API
-        # with the ID of an upload of a bad file, it will fail.
-        # This usually occurs when sending up an empty file, which is
-        # a case we can ignore. However, it'd be better to have a way
-        # to detect a bad upload and find the cause.
-      end
+      delete_pattern = "unmentioned_in_upload:#{upload_id}"
+      phraseapp_request(Phrase::KeysApi, :keys_delete_collection, @project_id, q: delete_pattern)
     end
 
     private
 
     def store_parent_commit(commit_hash)
-      params = PhraseApp::RequestParams::TagParams.new(
-        name: GIT_TAG_PREFIX + commit_hash)
-      phraseapp_request { @client.tag_create(@project_id, params) }
+      params = Phrase::TagCreateParameters.new(name: GIT_TAG_PREFIX + commit_hash)
+      phraseapp_request(Phrase::TagsApi,:tag_create, @project_id, params)
     end
 
-    def paginate_request(method, *params, limit: nil, &filter)
-      page = 1
-      results = []
-
-      loop do
-        response = phraseapp_request do
-          @client.public_send(method, *params, page, PAGE_SIZE)
-        end
-
-        break if response.empty?
-
-        matches = response.filter(&filter)
-        matches = matches[0, limit - results.size] if limit
-
-        unless matches.empty?
-          results.concat(matches)
-
-          break if results.size == limit
-        end
-
-        page += 1
-      end
-
-      results
-    end
-
-    def phraseapp_request(&block)
-      res, err = block.call
-
-      unless err.nil?
-        error =
-          if err.respond_to?(:error)
-            err.error
-          else
-            err.errors.join('|')
-          end
-
-        raise RuntimeError.new(error)
-      end
-
-      res
-
-    rescue RuntimeError => e
-      if e.message.match?(/\(401\)/)
+    def wrap_phrase_errors
+      yield
+    rescue Phrase::ApiError => e
+      if e.code == 401
         raise BadAPIKeyError.new(e)
       elsif e.message.match?(/not found/)
         raise BadProjectIDError.new(e, @project_id)
@@ -209,22 +218,49 @@ class PhraseAppUpdater
       end
     end
 
+    def paginated_request(api_class, method, *params, limit: nil, **opts, &filter)
+
+      api_instance = api_class.new(@client)
+      page = 1
+      results = []
+
+      loop do
+        response = wrap_phrase_errors do
+          api_instance.public_send(method, *params, opts.merge(page: page, page_size: PAGE_SIZE))
+        end
+
+        break if response.data.empty?
+
+        matches = response.data
+        matches = matches.filter(&filter) if filter
+        matches = matches[0, limit - results.size] if limit
+
+        results.concat(matches) unless matches.empty?
+
+        break if results.size == limit
+        break unless response.next_page?
+
+        page = response.next_page
+      end
+
+      results
+    end
+
+    def phraseapp_request(api_class, method, *params, **opts)
+      api_instance = api_class.new(@client)
+
+      response = wrap_phrase_errors do
+        api_instance.public_send(method, *params, opts)
+      end
+
+      response.data
+    end
+
     # PhraseApp allows two concurrent connections at a time.
     THREAD_COUNT = 2
 
     def threaded_request(worklist, &block)
       Parallel.map(worklist, in_threads: THREAD_COUNT, &block)
-    end
-
-    def create_upload_params(locale_name)
-      upload_params = PhraseApp::RequestParams::UploadParams.new
-      upload_params.file_encoding       = 'UTF-8'
-      upload_params.file_format         = @locale_file_class.phraseapp_type
-      upload_params.locale_id           = locale_name
-      upload_params.skip_unverification = false
-      upload_params.update_translations = true
-      upload_params.tags                = [generate_upload_tag]
-      upload_params
     end
 
     def generate_upload_tag
