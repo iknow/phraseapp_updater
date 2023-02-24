@@ -41,7 +41,7 @@ class PhraseAppUpdater
     end
 
     def lookup_project_id(name)
-      result, = paginated_request(Phrase::ProjectsApi, :projects_list, { per_page: PAGE_SIZE }, limit: 1) { |p| p.name == name }
+      result, = paginated_request(Phrase::ProjectsApi, :projects_list, per_page: PAGE_SIZE, limit: 1) { |p| p.name == name }
 
       raise ProjectNotFoundError.new(name) if result.nil?
 
