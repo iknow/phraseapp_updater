@@ -52,9 +52,9 @@ class PhraseAppUpdater
     write_locale_file(result, result_file)
   end
 
-  def upload_directory(path)
+  def upload_directory(path, remove_orphans: true)
     locales = load_locale_directory(path)
-    upload_locale_files(locales)
+    upload_locale_files(locales, remove_orphans: remove_orphans)
   end
 
   def download_to_directory(path)
@@ -103,7 +103,7 @@ class PhraseAppUpdater
     end
   end
 
-  def upload_locale_files(locale_files)
+  def upload_locale_files(locale_files, remove_orphans: true)
     # We assert that the default locale contains all legitimate strings, and so
     # we clean up orphaned content on PhraseApp post-upload by removing keys not
     # in the default locale.
@@ -114,8 +114,10 @@ class PhraseAppUpdater
     upload_ids = @phraseapp_api.upload_files(locale_files, default_locale: @default_locale)
     default_upload_id = upload_ids.fetch(@default_locale)
 
-    STDERR.puts "Removing keys not in default locale '#{@default_locale}' upload '#{default_upload_id}'"
-    @phraseapp_api.remove_keys_not_in_upload(default_upload_id)
+    if remove_orphans
+      STDERR.puts "Removing keys not in default locale '#{@default_locale}' upload '#{default_upload_id}'"
+      @phraseapp_api.remove_keys_not_in_upload(default_upload_id)
+    end
   end
 
   def download_locale_files

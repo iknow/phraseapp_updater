@@ -14,6 +14,7 @@ class PhraseAppUpdaterCLI < Thor
   method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
   method_option :phraseapp_project_name, type: :string, required: true, desc: 'Name for new PhraseApp project.'
   method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
+  method_option :remove_orphans,         type: :boolean, default: true, desc: 'Remove keys not in the uploaded default locale'
 
   def setup(locales_path)
     validate_readable_path!('locales', locales_path)
@@ -26,7 +27,7 @@ class PhraseAppUpdaterCLI < Thor
                  options[:parent_commit],
                  verbose: options[:verbose])
 
-      updater.upload_directory(locales_path)
+      updater.upload_directory(locales_path, remove_orphans: options[:remove_orphans])
 
       puts project_id
     end
@@ -104,6 +105,7 @@ class PhraseAppUpdaterCLI < Thor
   method_option :phraseapp_api_key,    type: :string, required: true, desc: 'PhraseApp API key.'
   method_option :phraseapp_project_id, type: :string, required: true, desc: 'PhraseApp project ID.'
   method_option :parent_commit,        type: :string, required: true, desc: 'git commit hash of locales being uploaded'
+  method_option :remove_orphans,       type: :boolean, default: true, desc: 'Remove keys not in the uploaded default locale'
 
   def upload(source_path)
     validate_readable_path!('source path', source_path)
@@ -115,7 +117,7 @@ class PhraseAppUpdaterCLI < Thor
         options[:file_format],
         verbose: options[:verbose])
 
-      updater.upload_directory(source_path)
+      updater.upload_directory(source_path, remove_orphans: options[:remove_orphans])
       updater.update_parent_commit(options[:parent_commit])
     end
   end
