@@ -62,6 +62,11 @@ class PhraseAppUpdater
     write_locale_directory(path, locale_files)
   end
 
+  def normalize_directory(source, destination)
+    locales = load_locale_directory(source)
+    write_locale_directory(destination, locales)
+  end
+
   def update_parent_commit(parent_commit)
     @phraseapp_api.update_parent_commit(parent_commit)
   end

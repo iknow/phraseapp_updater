@@ -162,6 +162,23 @@ class PhraseAppUpdaterCLI < Thor
     end
   end
 
+  desc 'normalize <source_path> <destination_path>',
+       'Normalize the locale directory at <source_path> into <destination_path>.'
+
+  long_desc <<-LONGDESC
+    Read, normalize, then write out the locales in <source_path> into <destination_path>.
+  LONGDESC
+
+  def normalize(source_path, destination_path)
+    validate_readable_path!('source_path', source_path)
+    validate_writable_path!('destination_path', destination_path)
+
+    handle_errors do
+      updater = PhraseAppUpdater.new(nil, nil, options[:file_format], verbose: options[:verbose])
+      updater.normalize_directory(source_path, destination_path)
+    end
+  end
+
   desc 'merge <ancestor_path> <our_path> <their_path>',
        '3-way merge locale file directories <ancestor_path>, <our_path>, <their_path> into TO.'
 
