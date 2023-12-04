@@ -1,11 +1,12 @@
 with (import <nixpkgs> {});
 let
+  ruby = ruby_3_1;
   env = bundlerEnv {
-    ruby = ruby_3_0;
+    inherit ruby;
     name = "bundler-env";
     gemdir  = ./nix/gem;
   };
 in stdenv.mkDerivation {
   name = "shell";
-  buildInputs = [ env ];
+  buildInputs = [ env ruby ];
 }
