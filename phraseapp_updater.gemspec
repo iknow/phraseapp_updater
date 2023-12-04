@@ -19,16 +19,15 @@ Gem::Specification.new do |spec|
   spec.executables   = ["phraseapp_updater"]
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "thor", "~> 0.19"
-  spec.add_dependency "phrase", "~> 2.8.3"
+  spec.add_dependency "thor", "~> 1.3.0"
+  spec.add_dependency "phrase", "~> 2.20.0"
   spec.add_dependency "hashdiff", "~> 1.0.1"
-  spec.add_dependency "multi_json", "~> 1.12"
-  spec.add_dependency "oj", "~> 2.18"
-  spec.add_dependency "deep_merge", "~> 1.1"
-  spec.add_dependency "parallel", "~> 1.12"
+  spec.add_dependency "oj", "~> 3.16"
+  spec.add_dependency "deep_merge", "~> 1.2"
+  spec.add_dependency "parallel", "~> 1.23"
 
   spec.add_development_dependency "bundler", "~> 2.2"
-  spec.add_development_dependency "rake", "~> 10.0"
-  spec.add_development_dependency "rspec", "~> 3.0"
-  spec.add_development_dependency "pry", "~> 0.10"
+  spec.add_development_dependency "rake", "~> 13.1"
+  spec.add_development_dependency "rspec", "~> 3.12"
+  spec.add_development_dependency "pry", "~> 0.14"
 end

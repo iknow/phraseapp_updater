@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'multi_json'
 require 'oj'
 
 # We're working with pure JSON, not
