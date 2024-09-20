@@ -25,10 +25,15 @@ class PhraseAppUpdater
       @locale_file_class = locale_file_class
     end
 
-    def create_project(name, parent_commit)
+    # @param [Hash] opts Options to be passed to the {https://developers.phrase.com/api/#post-/projects PhraseApp API}
+    def create_project(name, parent_commit, **opts)
       params = Phrase::ProjectCreateParameters.new(
-        name: name,
-        main_format: @locale_file_class.phraseapp_type)
+        # Merges name and main_format into opts to prevent overriding these properties
+        opts.merge(
+          name: name,
+          main_format: @locale_file_class.phraseapp_type
+        )
+      )
 
       project = phraseapp_request(Phrase::ProjectsApi, :project_create, params)
 

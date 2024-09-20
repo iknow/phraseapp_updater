@@ -10,9 +10,9 @@ require 'phraseapp_updater/yml_config_loader'
 class PhraseAppUpdater
   using IndexBy
 
-  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit, verbose: false)
+  def self.for_new_project(phraseapp_api_key, phraseapp_project_name, file_format, parent_commit, verbose: false, **phraseapp_opts)
     api = PhraseAppAPI.new(phraseapp_api_key, nil, LocaleFile.class_for_file_format(file_format))
-    project_id = api.create_project(phraseapp_project_name, parent_commit)
+    project_id = api.create_project(phraseapp_project_name, parent_commit, **phraseapp_opts)
     return self.new(phraseapp_api_key, project_id, file_format, verbose: verbose), project_id
   end
 

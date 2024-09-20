@@ -16,16 +16,47 @@ class PhraseAppUpdaterCLI < Thor
   method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
   method_option :remove_orphans,         type: :boolean, default: true, desc: 'Remove keys not in the uploaded default locale'
 
+  # Options that mirror the PhraseApp API (https://developers.phrase.com/api/#post-/projects)
+  method_option :autotranslate_check_new_locales,                       type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :autotranslate_check_new_translation_keys,              type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :autotranslate_check_new_uploads,                       type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :autotranslate_enabled,                                 type: :boolean, desc: 'Autopilot, requires machine_translation_enabled.'
+  method_option :autotranslate_mark_as_unverified,                      type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :autotranslate_use_machine_translation,                 type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :autotranslate_use_translation_memory,                  type: :boolean, desc: 'Requires autotranslate_enabled to be true'
+  method_option :enable_all_data_type_translation_keys_for_translators, type: :boolean, desc: 'Otherwise, translators are not allowed to edit translations other than strings'
+  method_option :enable_icu_message_format,                             type: :boolean, desc: 'We can validate and highlight your ICU messages.'
+  method_option :machine_translation_enabled,                           type: :boolean, desc: 'Enable machine translation support in the project. Required for Pre-Translation'
+  method_option :point_of_contact,                                      type: :string,  desc: 'User ID of the point of contact for the project.'
+  method_option :workflow,                                              type: :string,  desc: 'Review Workflow. "simple" / "review".'
+  method_option :zero_plural_form_enabled,                              type: :boolean, desc: 'Displays the input fields for the \'ZERO\' plural form for every key as well although only some languages require the \'ZERO\' explicitly.'
+
   def setup(locales_path)
     validate_readable_path!('locales', locales_path)
 
     handle_errors do
+      phraseapp_opts = options.slice(
+        :autotranslate_check_new_locales,
+        :autotranslate_check_new_translation_keys,
+        :autotranslate_check_new_uploads,
+        :autotranslate_enabled,
+        :autotranslate_mark_as_unverified,
+        :autotranslate_use_machine_translation,
+        :autotranslate_use_translation_memory,
+        :enable_all_data_type_translation_keys_for_translators,
+        :enable_icu_message_format,
+        :machine_translation_enabled,
+        :point_of_contact,
+        :workflow,
+        :zero_plural_form_enabled)
+
       updater, project_id = PhraseAppUpdater.for_new_project(
                  options[:phraseapp_api_key],
                  options[:phraseapp_project_name],
                  options[:file_format],
                  options[:parent_commit],
-                 verbose: options[:verbose])
+                 verbose: options[:verbose],
+                 **phraseapp_opts)
 
       updater.upload_directory(locales_path, remove_orphans: options[:remove_orphans])
 
