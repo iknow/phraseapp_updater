@@ -9,6 +9,14 @@ class PhraseAppUpdaterCLI < Thor
   class_option :file_format,    type: :string, default: 'json', desc: 'Filetype of localization files.'
   class_option :verbose,        type: :boolean, default: false, desc: 'Verbose output'
 
+  # Options that mirror the PhraseApp API (https://developers.phrase.com/api/#post-/projects)
+  PHRASEAPP_CREATE_PROJECT_OPTIONS = {
+    zero_plural_form_enabled: {
+      type: :boolean,
+      desc: 'Displays the input fields for the \'ZERO\' plural form for every key as well although only some languages require the \'ZERO\' explicitly.'
+    },
+  }
+
   desc 'setup <locale_path>',
        'Create a new PhraseApp project, initializing it with locale files at <locale_path>. the new project ID is printed to STDOUT'
   method_option :phraseapp_api_key,      type: :string, required: true, desc: 'PhraseApp API key.'
@@ -16,16 +24,23 @@ class PhraseAppUpdaterCLI < Thor
   method_option :parent_commit,          type: :string, required: true, desc: 'git commit hash of initial locales'
   method_option :remove_orphans,         type: :boolean, default: true, desc: 'Remove keys not in the uploaded default locale'
 
+  PHRASEAPP_CREATE_PROJECT_OPTIONS.each do |name, params|
+    method_option(name, **params)
+  end
+
   def setup(locales_path)
     validate_readable_path!('locales', locales_path)
 
     handle_errors do
+      phraseapp_opts = options.slice(*PHRASEAPP_CREATE_PROJECT_OPTIONS.keys)
+
       updater, project_id = PhraseAppUpdater.for_new_project(
                  options[:phraseapp_api_key],
                  options[:phraseapp_project_name],
                  options[:file_format],
                  options[:parent_commit],
-                 verbose: options[:verbose])
+                 verbose: options[:verbose],
+                 **phraseapp_opts)
 
       updater.upload_directory(locales_path, remove_orphans: options[:remove_orphans])
 
