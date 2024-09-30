@@ -4,6 +4,7 @@ require 'phraseapp_updater/locale_file'
 require 'phraseapp_updater/index_by'
 require 'uri'
 require 'phrase'
+require 'concurrent'
 require 'parallel'
 require 'tempfile'
 
@@ -96,38 +97,60 @@ class PhraseAppUpdater
       end
     end
 
-    # Empirically, PhraseApp fails to parse the uploaded files when uploaded in
-    # parallel. Give it a better chance by uploading them one at a time.
     def upload_files(locale_files, default_locale:)
-      is_default = ->(l) { l.locale_name == default_locale }
+      locale_files = locale_files.sort_by(&:locale_name)
+      default_locale_file = locale_files.detect { |l| l.locale_name == default_locale }
+      locale_files.delete(default_locale_file) if default_locale_file
+
+      known_locales = fetch_locales.index_by(&:name)
+
+      # Phraseapp appears to use to use the first file uploaded to resolve conflicts
+      # between pluralized and non-pluralized keys. Upload and verify the canonical
+      # default locale first before uploading translated locales.
+      if default_locale_file
+        unless known_locales.has_key?(default_locale_file.locale_name)
+          STDERR.puts("Creating default locale (#{default_locale_file})")
+          create_locale(default_locale_file.locale_name, default: true)
+        end
+
+        STDERR.puts("Uploading default locale (#{default_locale_file})")
+        upload_id = upload_file(default_locale_file)
+
+        successful_default_upload = verify_uploads({ upload_id => default_locale_file })
+      else
+        STDERR.puts("No upload for default locale (#{default_locale})")
+      end
 
       # Ensure the locales all exist
-      STDERR.puts('Creating locales')
-      known_locales = fetch_locales.index_by(&:name)
+      STDERR.puts('Creating translation locales')
       threaded_request(locale_files) do |locale_file|
         unless known_locales.has_key?(locale_file.locale_name)
-          create_locale(locale_file.locale_name, default: is_default.(locale_file))
+          create_locale(locale_file.locale_name, default: false)
         end
       end
 
-      # Upload the files in a stable order, ensuring the default locale is first.
-      locale_files.sort! do |a, b|
-        next -1 if is_default.(a)
-        next 1  if is_default.(b)
+      uploads = Concurrent::Hash.new
 
-        a.locale_name <=> b.locale_name
-      end
-
-      uploads = {}
-
-      uploads = locale_files.to_h do |locale_file|
+      threaded_request(locale_files) do |locale_file|
         STDERR.puts("Uploading #{locale_file}")
         upload_id = upload_file(locale_file)
-        [upload_id, locale_file]
+        uploads[upload_id] = locale_file
       end
 
-      # Validate the uploads, retrying failures as necessary
-      successful_upload_ids = {}
+      successful_uploads = verify_uploads(uploads)
+
+      if default_locale_file
+        successful_uploads = successful_uploads.merge(successful_default_upload)
+      end
+
+      successful_uploads
+    end
+
+    # Given a map of {upload_id => locale_file} pairs, use the upload_show
+    # API to verify that they're complete, and re-upload them if they failed.
+    # Return a map of locale name to upload id.
+    def verify_uploads(uploads)
+      successful_upload_ids = Concurrent::Hash.new
 
       STDERR.puts('Verifying uploads...')
       until uploads.empty?
@@ -156,6 +179,7 @@ class PhraseAppUpdater
 
       successful_upload_ids
     end
+
 
     def remove_keys_not_in_uploads(upload_ids)
       threaded_request(upload_ids) do |upload_id|
