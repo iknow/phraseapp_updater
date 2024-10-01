@@ -25,6 +25,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "oj", "~> 3.16"
   spec.add_dependency "deep_merge", "~> 1.2"
   spec.add_dependency "parallel", "~> 1.23"
+  spec.add_dependency "concurrent-ruby", "~> 1.0.2"
 
   spec.add_development_dependency "bundler", "~> 2.2"
   spec.add_development_dependency "rake", "~> 13.1"
