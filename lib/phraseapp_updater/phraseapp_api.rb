@@ -238,17 +238,30 @@ class PhraseAppUpdater
       phraseapp_request(Phrase::TagsApi,:tag_create, @project_id, params)
     end
 
-    def wrap_phrase_errors
-      yield
-    rescue Phrase::ApiError => e
-      if e.code == 401
-        raise BadAPIKeyError.new(e)
-      elsif e.message.match?(/not found/)
-        raise BadProjectIDError.new(e, @project_id)
-      elsif e.message.match?(/has already been taken/)
-        raise ProjectNameTakenError.new(e)
-      else
-        raise
+    def wrap_phrase_errors(retries: 10)
+      begin
+        yield
+      rescue Phrase::ApiError => e
+        if e.code == 401
+          raise BadAPIKeyError.new(e)
+        elsif e.code == 429
+          # If we bail mid-sync, it can be expensive to recover from a partial
+          # merge. Instead, aggressively try to retry.
+          if retries >= 0
+            retries -= 1
+            STDERR.puts('Rate limited, retrying in 5...')
+            sleep(5)
+            retry
+          end
+
+          raise RateLimitError.new(e)
+        elsif e.message.match?(/not found/)
+          raise BadProjectIDError.new(e, @project_id)
+        elsif e.message.match?(/has already been taken/)
+          raise ProjectNameTakenError.new(e)
+        else
+          raise
+        end
       end
     end
 
@@ -349,6 +362,12 @@ class PhraseAppUpdater
     end
 
     class ProjectNameTakenError < RuntimeError
+      def initialize(original_error)
+        super(original_error.message)
+      end
+    end
+
+    class RateLimitError < RuntimeError
       def initialize(original_error)
         super(original_error.message)
       end
