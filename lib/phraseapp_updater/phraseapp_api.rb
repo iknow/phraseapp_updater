@@ -151,7 +151,7 @@ class PhraseAppUpdater
     # Return a map of locale name to upload id.
     def verify_uploads(uploads)
       successful_upload_ids = Concurrent::Hash.new
-
+      attempts = 1
       STDERR.puts('Verifying uploads...')
       until uploads.empty?
         threaded_request(uploads.to_a) do |upload_id, locale_file|
@@ -174,7 +174,12 @@ class PhraseAppUpdater
           end
         end
 
-        sleep(2) unless uploads.empty?
+        unless uploads.empty?
+          delay = attempts ** 1.6 + 1
+          STDERR.puts("#{uploads.size} remaining, waiting #{delay.round} seconds...")
+          sleep(delay)
+          attempts += 1
+        end
       end
 
       successful_upload_ids
