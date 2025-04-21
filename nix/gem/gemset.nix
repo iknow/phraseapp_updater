@@ -192,7 +192,7 @@
       sha256 = "1mrhphzf192m3sf43nm7ynpdz5mnmdwwq3hsvj9sf2j5rknv2nk5";
       type = "gem";
     };
-    version = "3.3.1";
+    version = "3.3.2";
   };
   pry = {
     dependencies = ["coderay" "method_source"];
