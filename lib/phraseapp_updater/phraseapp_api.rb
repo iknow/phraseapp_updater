@@ -151,7 +151,7 @@ class PhraseAppUpdater
     # Return a map of locale name to upload id.
     def verify_uploads(uploads)
       successful_upload_ids = Concurrent::Hash.new
-
+      attempts = 1
       STDERR.puts('Verifying uploads...')
       until uploads.empty?
         threaded_request(uploads.to_a) do |upload_id, locale_file|
@@ -174,7 +174,12 @@ class PhraseAppUpdater
           end
         end
 
-        sleep(2) unless uploads.empty?
+        unless uploads.empty?
+          delay = attempts ** 1.6 + 1
+          STDERR.puts("#{uploads.size} remaining, waiting #{delay.round} seconds...")
+          sleep(delay)
+          attempts += 1
+        end
       end
 
       successful_upload_ids
@@ -233,17 +238,30 @@ class PhraseAppUpdater
       phraseapp_request(Phrase::TagsApi,:tag_create, @project_id, params)
     end
 
-    def wrap_phrase_errors
-      yield
-    rescue Phrase::ApiError => e
-      if e.code == 401
-        raise BadAPIKeyError.new(e)
-      elsif e.message.match?(/not found/)
-        raise BadProjectIDError.new(e, @project_id)
-      elsif e.message.match?(/has already been taken/)
-        raise ProjectNameTakenError.new(e)
-      else
-        raise
+    def wrap_phrase_errors(retries: 10)
+      begin
+        yield
+      rescue Phrase::ApiError => e
+        if e.code == 401
+          raise BadAPIKeyError.new(e)
+        elsif e.code == 429
+          # If we bail mid-sync, it can be expensive to recover from a partial
+          # merge. Instead, aggressively try to retry.
+          if retries >= 0
+            retries -= 1
+            STDERR.puts('Rate limited, retrying in 5...')
+            sleep(5)
+            retry
+          end
+
+          raise RateLimitError.new(e)
+        elsif e.message.match?(/not found/)
+          raise BadProjectIDError.new(e, @project_id)
+        elsif e.message.match?(/has already been taken/)
+          raise ProjectNameTakenError.new(e)
+        else
+          raise
+        end
       end
     end
 
@@ -344,6 +362,12 @@ class PhraseAppUpdater
     end
 
     class ProjectNameTakenError < RuntimeError
+      def initialize(original_error)
+        super(original_error.message)
+      end
+    end
+
+    class RateLimitError < RuntimeError
       def initialize(original_error)
         super(original_error.message)
       end

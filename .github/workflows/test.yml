@@ -27,10 +27,10 @@ jobs:
     - name: Run tests
       run: bundle exec rspec --profile 10 --format RspecJunitFormatter --out test_results/rspec.xml --format progress
     - name: Upload result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: rspec.xml
+        name: rspec-${{ matrix.ruby-version }}.xml
         path: test_results/rspec.xml
     - name: Test Report
       uses: dorny/test-reporter@v1
