@@ -239,15 +239,14 @@ class PhraseAppUpdaterCLI < Thor
     validate_readable_file!('ancestor', ancestor)
     validate_readable_file!('ours', ours)
     validate_readable_file!('theirs', theirs)
-    validate_writable_file!('to', to)
 
     # Git provides an empty file when there is no common ancestor in the
     # merge-base. Because we want to merge from an empty hash structure instead,
     # pass `nil` to `merge_files`.
     ancestor = nil if File.zero?(ancestor)
 
-    updater = PhraseAppUpdater.new(nil, nil, file_format, verbose: options[:verbose])
-    updater.merge_files(ours, theirs, ancestor, to)
+    updater = PhraseAppUpdater.new(nil, nil, options[:file_format], verbose: options[:verbose])
+    updater.merge_files(ours, theirs, ancestor, options[:to])
   end
 
   desc 'default', 'Prints gem information'
