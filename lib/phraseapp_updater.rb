@@ -47,7 +47,7 @@ class PhraseAppUpdater
     # Read the ancestor if provided
     ancestor_file = load_locale_file(ancestor) unless ancestor.nil?
 
-    result_file = merge_locale_files(our_file, their_file, ancestor_file)
+    result_file = merge_locale_file(our_file, their_file, ancestor_file)
 
     write_locale_file(result, result_file)
   end
@@ -152,7 +152,7 @@ class PhraseAppUpdater
     end
   end
 
-  def load_local_file(filename)
+  def load_locale_file(filename)
     @locale_file_class.load_file(filename)
   end
 
